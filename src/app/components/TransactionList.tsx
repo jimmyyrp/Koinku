@@ -48,7 +48,7 @@ import {
 interface TransactionListProps {
   transactions: Transaction[];
   categories: Category[];
-  onDelete: (id: string) => void;
+  onDelete: (id: number) => void;
   onEdit: (transaction: Transaction) => void;
 }
 
@@ -67,7 +67,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
     return transactions
       .filter(t => t.description.toLowerCase().includes(searchTerm.toLowerCase()))
       .filter(t => activeTab === 'all' || t.type === activeTab)
-      .filter(t => categoryFilter === 'all' || t.categoryId === categoryFilter);
+      .filter(t => categoryFilter === 'all' || t.categoryId === Number(categoryFilter));
   }, [transactions, searchTerm, activeTab, categoryFilter]);
 
   const groupedTransactions = useMemo(() => {
@@ -131,7 +131,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-2 pb-24 md:pb-0">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-2">
       <div className="lg:col-span-8 space-y-6">
         {/* Filters Header */}
         <div className="flex flex-col gap-4">
@@ -170,7 +170,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               <SelectContent className="neo-border rounded-xl">
                 <SelectItem value="all" className="font-black uppercase text-[10px]">Semua Kategori</SelectItem>
                 {categories.filter(c => activeTab === 'all' || c.type === activeTab).map(cat => (
-                  <SelectItem key={cat.id} value={cat.id} className="font-black uppercase text-[10px]">
+                  <SelectItem key={cat.id} value={String(cat.id)} className="font-black uppercase text-[10px]">
                     {cat.name}
                   </SelectItem>
                 ))}
@@ -198,30 +198,41 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                   {group.items.map((t) => {
                     const cat = categories.find(c => c.id === t.categoryId);
                     return (
-                      <div key={t.id} className="neo-card p-4 md:p-5 flex items-center justify-between group bg-white border-b-8 md:border-b-[10px] hover:translate-x-1 transition-transform">
-                        <div className="flex items-center gap-4 md:gap-5 overflow-hidden flex-1">
+                      <div key={t.id} className="neo-card p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 bg-white border-b-8 md:border-b-[10px] hover:translate-x-1 transition-transform">
+                        <div className="flex items-center gap-4 md:gap-5 overflow-hidden flex-1 min-w-0">
                           <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl neo-border flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: cat?.color || '#eee' }}>
                             {t.type === 'income' ? <ArrowDownLeft className="h-5 w-5 text-white" /> : <ArrowUpRight className="h-5 w-5 text-white" />}
                           </div>
-                          <div className="overflow-hidden">
+                          <div className="min-w-0 flex-1">
                             <h3 className="text-sm md:text-base font-black truncate tracking-tight leading-tight">{t.description}</h3>
                             <p className="text-[9px] font-black uppercase opacity-40 truncate">
                               {cat?.name || 'Tanpa Kategori'} • {new Date(t.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-4 md:gap-6 shrink-0 ml-4">
-                          <p className={cn("text-sm md:text-lg font-black italic tracking-tighter tabular-nums", t.type === 'income' ? "text-green-600" : "text-black")}>
+
+                        <div className="flex items-center justify-between md:justify-end gap-3 md:gap-5 shrink-0 md:ml-4">
+                          <p className={cn("text-sm md:text-lg font-black italic tracking-tighter tabular-nums whitespace-nowrap", t.type === 'income' ? "text-green-600" : "text-black")}>
                             {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                           </p>
-                          <div className="hidden md:flex gap-2">
-                            <button onClick={() => onEdit(t)} className="p-2 neo-border rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"><Edit2 className="h-4 w-4" /></button>
+                          <div className="flex gap-1.5 md:gap-2">
+                            <button
+                              onClick={() => onEdit(t)}
+                              aria-label={`Ubah transaksi ${t.description}`}
+                              className="p-2 neo-border rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <button className="p-2 neo-border rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                <button
+                                  aria-label={`Hapus transaksi ${t.description}`}
+                                  className="p-2 neo-border rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent className="neo-border rounded-[32px]">
+                              <AlertDialogContent className="neo-border rounded-[32px] sm:rounded-[32px]">
                                 <AlertDialogHeader>
                                   <AlertDialogTitle className="font-black italic text-xl">Hapus Data?</AlertDialogTitle>
                                   <AlertDialogDescription className="font-bold">Aksi ini permanen dan tidak bisa dibatalkan.</AlertDialogDescription>
@@ -241,7 +252,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               </div>
             ))
           ) : (
-            <div className="neo-card bg-white/50 p-16 text-center border-dashed border-2 opacity-20 italic font-bold rounded-[32px] shadow-inner">
+            <div className="neo-card bg-white/50 p-10 md:p-16 text-center border-dashed border-2 opacity-30 italic font-bold rounded-[32px] shadow-inner">
               Belum ada riwayat ditemukan.
             </div>
           )}
@@ -259,7 +270,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
 
       {/* Analytics Sidebar */}
       <div className="lg:col-span-4 space-y-8">
-        <div className="neo-card bg-white p-6 md:p-8 border-b-[10px] sticky top-28 transition-all">
+        <div className="neo-card bg-white p-6 md:p-8 border-b-[10px] lg:sticky lg:top-6 transition-all">
           <div className="flex items-center gap-3 mb-6">
             <LayoutGrid className="h-5 w-5 opacity-30" />
             <h4 className="font-black text-[10px] uppercase tracking-widest opacity-30">Distribusi Kategori</h4>

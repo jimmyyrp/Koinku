@@ -38,10 +38,11 @@
     @apply bg-background text-foreground font-body transition-colors duration-300 antialiased;
     /* Kunci viewport untuk iOS PWA stability */
     height: 100dvh;
-    width: 100vw;
+    width: 100%;
     overflow: hidden;
     position: fixed;
     touch-action: manipulation;
+    overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }
   .no-scrollbar::-webkit-scrollbar {
@@ -92,4 +93,15 @@
 }
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Navigasi bawah mobile: hormati safe area (notch / home indicator iOS) */
+.safe-area-bottom {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+}
+
+/* Angka uang selalu rapi dan tidak meluber di layar sempit */
+.tabular-currency {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

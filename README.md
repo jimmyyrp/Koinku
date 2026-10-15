@@ -1,29 +1,45 @@
-
 # KOIN KU - Financial Manager 🪙
 
-Aplikasi manajemen keuangan pribadi dengan desain **Neobrutalisme** yang berani, fungsional, dan cerdas. Dibangun dengan Next.js 15, Tailwind CSS, dan bertenaga AI melalui Genkit.
+Aplikasi manajemen keuangan pribadi dengan desain **Neobrutalisme** yang berani dan fungsional. Dibangun dengan Next.js 15, Tailwind CSS, dan **MongoDB Atlas** sebagai penyimpanan data.
 
 ## ✨ Fitur Utama
 
-- **Offline-First & Auto-Sync**: Data tersimpan secara instan di perangkat Anda (Cache Lokal) dan otomatis sinkron ke sistem utama saat internet tersedia.
-- **Dashboard Interaktif**: Visualisasi arus kas 7 hari terakhir secara otomatis menggunakan AreaChart.
-- **Wawasan Finansial AI**: Dapatkan saran cerdas dan status kesehatan keuangan Anda secara real-time dari asisten AI berdasarkan data bulan ini.
-- **Input Cepat (Single-Page Form)**: Proses pencatatan transaksi yang efisien dalam satu layar dengan pemisah ribuan otomatis (dots).
-- **Manajemen Kategori Mandiri**: Tambah, hapus, dan atur warna kategori (pemasukan/pengeluaran) sesuka hati.
+- **Login Aman**: Akses aplikasi menggunakan kredensial database MongoDB (`koinku_db_user`), diverifikasi server-side.
+- **Database MongoDB**: Semua data tersimpan di MongoDB Atlas (profil, kategori, transaksi) melalui API route server-side.
+- **Migrasi Otomatis**: Struktur database, index unik, dan kategori default otomatis dibuat saat server pertama kali berjalan — tidak perlu menyentuh database.
+- **Offline-First & Auto-Sync**: Data tersimpan instan di perangkat (Cache Lokal) dan otomatis sinkron ke MongoDB saat internet tersedia, termasuk migrasi data lama dari cache lokal.
+- **Dashboard Interaktif**: Saldo, tren arus kas 7 hari, kontrol anggaran bulanan, dan target dana darurat.
+- **Input Cepat (Single-Page Form)**: Pencatatan transaksi efisien dengan pemisah ribuan otomatis.
+- **Manajemen Kategori Mandiri**: Tambah, hapus, dan atur anggaran kategori (pemasukan/pengeluaran).
 - **Sistem CRUD Lengkap**: Tambah, baca, edit, dan hapus transaksi dengan konfirmasi keamanan.
-- **Kontrol Data Pribadi**: Ekspor data ke JSON (Backup) atau CSV (Excel) dan fitur reset total data.
-- **Desain Neobrutalisme**: Antarmuka responsif dengan Sidebar (Desktop) dan Fixed Floating Navigation (Mobile) yang stabil.
+- **Kontrol Data Pribadi**: Ekspor data ke JSON (Backup) atau CSV (Excel) dan reset total data.
+- **Desain Neobrutalisme**: Responsif dengan Sidebar (Desktop) dan Fixed Floating Navigation (Mobile).
 
-## 🚀 Cara Push ke GitHub (Aman)
+## 🚀 Menjalankan
 
-Proyek ini sudah dilengkapi dengan `.gitignore` untuk melindungi file sensitif.
+1. Salin `.env.example` menjadi `.env.local` lalu isi `MONGODB_URI` (dan `MONGODB_DB`).
+2. Install dependensi: `npm install`
+3. Jalankan aplikasi: `npm run dev` (otomatis migrasi dijalankan saat server start)
+4. (Opsional) Migrasi manual: `npm run migrate`
 
-1. Inisialisasi git: `git init`
-2. Tambahkan remote: `git remote add origin https://github.com/USERNAME/REPO_NAME.git`
-3. Tambahkan semua file: `git add .` (File .env dan node_modules akan otomatis diabaikan)
-4. Commit: `git commit -m "Initial commit KOIN KU - Secure Edition"`
-5. Push: `git push -u origin main`
+Login default menggunakan kredensial MongoDB Atlas kamu:
+- **Username**: `koinku_db_user`
+- **Password**: (password database Atlas yang kamu buat)
 
----
+## 🗄️ Struktur Database
 
-*PENTING: Jangan pernah menghapus file .gitignore agar kunci API Anda tetap aman di perangkat lokal.*
+| Koleksi | Kegunaan |
+|---|---|
+| `profiles` | Saldo awal & target dana darurat (id: `global`) |
+| `categories` | Klasifikasi transaksi + anggaran bulanan |
+| `transactions` | Riwayat pemasukan / pengeluaran |
+
+## ☁️ Push ke GitHub (Aman)
+
+`.gitignore` sudah melindungi file sensitif (`node_modules`, `.env.local`, dll).
+
+1. `git add .`
+2. `git commit -m "Initial commit KOIN KU"`
+3. `git push -u origin main`
+
+*PENTING: Jangan pernah menghapus file `.gitignore` dan jangan pernah commit `.env.local` agar kredensial database tetap aman.*

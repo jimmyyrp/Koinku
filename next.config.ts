@@ -1,13 +1,9 @@
+import path from 'node:path';
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Kunci root proyek agar Next tidak salah mendeteksi workspace (ada pnpm-lock di folder induk)
+  outputFileTracingRoot: path.join(__dirname),
   images: {
     remotePatterns: [
       {

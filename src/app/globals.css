@@ -4,29 +4,32 @@
 
 @layer base {
   :root {
-    --background: 158 40% 95%;
+    --background: 210 40% 98%;
     --foreground: 222 47% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 158 60% 45%;
+    --primary: 160 84% 39%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 42 100% 70%;
-    --muted: 158 20% 92%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 260 100% 77%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 262 83% 58%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 0 0% 0%;
-    --input: 0 0% 0%;
-    --ring: 158 60% 45%;
-    --radius: 28px;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 160 84% 39%;
+    --radius: 20px;
 
-    --chart-1: 158 60% 45%;
-    --chart-2: 260 100% 77%;
-    --chart-3: 42 100% 65%;
+    --chart-1: 160 84% 39%;
+    --chart-2: 262 83% 58%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 199 89% 48%;
+    --chart-5: 340 82% 52%;
   }
 }
 
@@ -55,26 +58,17 @@
 }
 
 @layer components {
-  .neo-shadow {
-    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
-  }
-  .neo-shadow-sm {
-    box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 1);
-  }
-  .neo-shadow-lg {
-    box-shadow: 10px 10px 0px 0px rgba(0, 0, 0, 1);
-  }
   .neo-border {
-    @apply border-2 border-black;
-  }
-  .neo-card {
-    @apply bg-card neo-border neo-shadow-sm p-6 rounded-[32px] transition-all duration-200 hover:-translate-y-1 hover:-translate-x-1 hover:neo-shadow;
-  }
-  .neo-input {
-    @apply w-full h-14 neo-border rounded-[24px] px-5 font-bold focus:outline-none focus:ring-4 focus:ring-primary/20 bg-white transition-all shadow-inner;
+    @apply border border-border;
   }
   .neo-interactive {
-    @apply transition-all duration-100 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none hover:shadow-md;
+    @apply transition-all duration-150 hover:brightness-[0.98] active:scale-[0.98] hover:shadow-md;
+  }
+  .soft-card {
+    @apply bg-card neo-border rounded-[24px] p-6 shadow-[0_6px_24px_-14px_rgba(15,23,42,0.18)] transition-all duration-200;
+  }
+  .soft-card:hover {
+    @apply shadow-[0_16px_40px_-20px_rgba(15,23,42,0.28)] -translate-y-0.5;
   }
 }
 

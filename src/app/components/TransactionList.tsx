@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -13,11 +12,11 @@ import {
   LayoutGrid,
   Sparkles,
   Filter,
-  X,
-  Calendar
+  X
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { formatCurrency, formatTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { 
   ResponsiveContainer, 
@@ -120,39 +119,31 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
       .filter(d => d.value > 0);
   }, [categories, activeTab, filtered]);
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0
-    }).format(val);
-  };
-
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-2">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="lg:col-span-8 space-y-6">
         {/* Filters Header */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 opacity-30" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Cari transaksi..." 
-                className="pl-14 h-14 md:h-16 neo-border rounded-[24px] bg-white font-bold text-sm shadow-inner"
+                className="pl-11 h-12 md:h-14 rounded-2xl bg-white font-medium border-border"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-2 p-1.5 bg-white neo-border rounded-[24px] shadow-sm">
+            <div className="flex gap-1 p-1 bg-white rounded-2xl border border-border">
               {(['all', 'expense', 'income'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "px-6 md:px-8 py-2 md:py-3 rounded-2xl text-[10px] font-black uppercase transition-all",
-                    activeTab === tab ? "bg-black text-white neo-shadow-sm" : "opacity-40 hover:opacity-100"
+                    "px-5 md:px-6 py-2 md:py-2.5 rounded-xl text-xs font-semibold transition-all",
+                    activeTab === tab ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted"
                   )}
                 >
                   {tab === 'all' ? 'Semua' : tab === 'expense' ? 'Keluar' : 'Masuk'}
@@ -162,64 +153,64 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
           </div>
           
           <div className="flex items-center gap-3">
-            <Filter className="h-4 w-4 opacity-30" />
+            <Filter className="h-4 w-4 text-muted-foreground" />
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[200px] neo-border rounded-xl bg-white font-black text-[10px] uppercase shadow-sm">
+              <SelectTrigger className="w-full md:w-[200px] rounded-xl bg-white font-medium text-sm border-border">
                 <SelectValue placeholder="Pilih Kategori" />
               </SelectTrigger>
-              <SelectContent className="neo-border rounded-xl">
-                <SelectItem value="all" className="font-black uppercase text-[10px]">Semua Kategori</SelectItem>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all" className="text-sm">Semua Kategori</SelectItem>
                 {categories.filter(c => activeTab === 'all' || c.type === activeTab).map(cat => (
-                  <SelectItem key={cat.id} value={String(cat.id)} className="font-black uppercase text-[10px]">
+                  <SelectItem key={cat.id} value={String(cat.id)} className="text-sm">
                     {cat.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {categoryFilter !== 'all' && (
-              <Button variant="ghost" size="sm" onClick={() => setCategoryFilter('all')} className="h-8 px-2">
-                <X className="h-3 w-3 mr-2" /> <span className="text-[10px] font-black uppercase">Reset</span>
+              <Button variant="ghost" size="sm" onClick={() => setCategoryFilter('all')} className="h-9 px-3 rounded-xl">
+                <X className="h-3.5 w-3.5 mr-1.5" /> <span className="text-xs font-medium">Reset</span>
               </Button>
             )}
           </div>
         </div>
 
         {/* List Content Grouped by Date */}
-        <div className="space-y-10">
+        <div className="space-y-8">
           {paginatedGroups.length > 0 ? (
             paginatedGroups.map((group) => (
-              <div key={group.label} className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-500">
+              <div key={group.label} className="space-y-3 animate-in fade-in slide-in-from-left-2 duration-400">
                 <div className="flex items-center gap-4">
-                  <div className="h-px flex-1 bg-black/5" />
-                  <p className="text-[10px] font-black uppercase tracking-widest opacity-30 italic">{group.label}</p>
-                  <div className="h-px flex-1 bg-black/5" />
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-[11px] font-medium text-muted-foreground">{group.label}</p>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {group.items.map((t) => {
                     const cat = categories.find(c => c.id === t.categoryId);
                     return (
-                      <div key={t.id} className="neo-card p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 bg-white border-b-8 md:border-b-[10px] hover:translate-x-1 transition-transform">
-                        <div className="flex items-center gap-4 md:gap-5 overflow-hidden flex-1 min-w-0">
-                          <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl neo-border flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: cat?.color || '#eee' }}>
+                      <div key={t.id} className="soft-card p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
+                        <div className="flex items-center gap-4 overflow-hidden flex-1 min-w-0">
+                          <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: cat?.color || '#eee' }}>
                             {t.type === 'income' ? <ArrowDownLeft className="h-5 w-5 text-white" /> : <ArrowUpRight className="h-5 w-5 text-white" />}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h3 className="text-sm md:text-base font-black truncate tracking-tight leading-tight">{t.description}</h3>
-                            <p className="text-[9px] font-black uppercase opacity-40 truncate">
-                              {cat?.name || 'Tanpa Kategori'} • {new Date(t.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                            <h3 className="text-sm md:text-base font-semibold truncate tracking-tight leading-tight">{t.description}</h3>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {cat?.name || 'Tanpa Kategori'} • {formatTime(t.date)}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between md:justify-end gap-3 md:gap-5 shrink-0 md:ml-4">
-                          <p className={cn("text-sm md:text-lg font-black italic tracking-tighter tabular-nums whitespace-nowrap", t.type === 'income' ? "text-green-600" : "text-black")}>
+                        <div className="flex items-center justify-between md:justify-end gap-3 md:gap-4 shrink-0 md:ml-4">
+                          <p className={cn("text-base md:text-lg font-semibold tabular-nums whitespace-nowrap", t.type === 'income' ? "text-emerald-600" : "text-foreground")}>
                             {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                           </p>
                           <div className="flex gap-1.5 md:gap-2">
                             <button
                               onClick={() => onEdit(t)}
                               aria-label={`Ubah transaksi ${t.description}`}
-                              className="p-2 neo-border rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                              className="p-2 rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
@@ -227,19 +218,19 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                               <AlertDialogTrigger asChild>
                                 <button
                                   aria-label={`Hapus transaksi ${t.description}`}
-                                  className="p-2 neo-border rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                  className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent className="neo-border rounded-[32px] sm:rounded-[32px]">
+                              <AlertDialogContent className="rounded-3xl">
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle className="font-black italic text-xl">Hapus Data?</AlertDialogTitle>
-                                  <AlertDialogDescription className="font-bold">Aksi ini permanen dan tidak bisa dibatalkan.</AlertDialogDescription>
+                                  <AlertDialogTitle className="font-semibold text-lg">Hapus Data?</AlertDialogTitle>
+                                  <AlertDialogDescription className="text-sm">Aksi ini permanen dan tidak bisa dibatalkan.</AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel className="neo-border rounded-xl">Batal</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => onDelete(t.id)} className="neo-border bg-destructive text-white rounded-xl">Hapus</AlertDialogAction>
+                                  <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => onDelete(t.id)} className="rounded-xl bg-destructive text-white">Hapus</AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
@@ -252,7 +243,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               </div>
             ))
           ) : (
-            <div className="neo-card bg-white/50 p-10 md:p-16 text-center border-dashed border-2 opacity-30 italic font-bold rounded-[32px] shadow-inner">
+            <div className="bg-white p-12 text-center border border-dashed border-border rounded-3xl text-muted-foreground">
               Belum ada riwayat ditemukan.
             </div>
           )}
@@ -260,37 +251,37 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
 
         {/* Load More */}
         {filtered.length > paginatedGroups.reduce((acc, g) => acc + g.items.length, 0) && (
-          <div className="flex justify-center pt-8">
-            <Button onClick={() => setPageSize(prev => prev + 10)} className="neo-border bg-black text-white px-10 h-16 font-black uppercase rounded-[28px] text-xs neo-interactive shadow-lg">
-              Lihat Lebih Banyak <ChevronDown className="ml-3 h-5 w-5" />
+          <div className="flex justify-center pt-6">
+            <Button onClick={() => setPageSize(prev => prev + 10)} className="bg-primary text-white px-8 h-12 font-semibold rounded-2xl text-sm neo-interactive">
+              Lihat Lebih Banyak <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </div>
         )}
       </div>
 
       {/* Analytics Sidebar */}
-      <div className="lg:col-span-4 space-y-8">
-        <div className="neo-card bg-white p-6 md:p-8 border-b-[10px] lg:sticky lg:top-6 transition-all">
-          <div className="flex items-center gap-3 mb-6">
-            <LayoutGrid className="h-5 w-5 opacity-30" />
-            <h4 className="font-black text-[10px] uppercase tracking-widest opacity-30">Distribusi Kategori</h4>
+      <div className="lg:col-span-4 space-y-6">
+        <div className="soft-card lg:sticky lg:top-6">
+          <div className="flex items-center gap-2 mb-6 text-muted-foreground">
+            <LayoutGrid className="h-4 w-4" />
+            <h4 className="text-sm font-semibold">Distribusi Kategori</h4>
           </div>
           {pieData.length > 0 ? (
             <div className="flex flex-col">
               <div className="h-48 md:h-60 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={8} dataKey="value">
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
                       {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} stroke="#000" strokeWidth={2} />
+                        <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <RechartsTooltip content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="bg-black text-white p-4 rounded-2xl neo-border text-[10px] font-black uppercase shadow-2xl">
-                            <p className="opacity-60">{payload[0].name}</p>
-                            <p className="text-base italic">{formatCurrency(payload[0].value as number)}</p>
+                          <div className="bg-white border border-border p-3 rounded-xl text-xs shadow-lg">
+                            <p className="text-muted-foreground mb-0.5">{payload[0].name}</p>
+                            <p className="text-sm font-semibold">{formatCurrency(payload[0].value as number)}</p>
                           </div>
                         );
                       }
@@ -299,14 +290,14 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="space-y-2.5 mt-6">
+              <div className="space-y-3 mt-6">
                 {pieData.slice(0, 5).map((d, i) => (
-                  <div key={i} className="flex items-center justify-between text-[11px] font-black uppercase">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-3 h-3 rounded-full neo-border shrink-0" style={{ backgroundColor: d.color }} />
-                      <span className="opacity-50 truncate max-w-[120px]">{d.name}</span>
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                      <span className="text-muted-foreground truncate max-w-[140px]">{d.name}</span>
                     </div>
-                    <span className="tabular-nums">
+                    <span className="font-semibold tabular-nums">
                       {Math.round((d.value / (filtered.reduce((s, x) => s + x.amount, 0) || 1)) * 100)}%
                     </span>
                   </div>
@@ -314,9 +305,9 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 opacity-10 italic">
-              <Sparkles className="h-10 w-10 mb-4" />
-              <p className="text-[9px] font-black uppercase tracking-widest text-center">Data grafik belum cukup.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Sparkles className="h-9 w-9 mb-3 opacity-40" />
+              <p className="text-xs text-center">Data grafik belum cukup.</p>
             </div>
           )}
         </div>

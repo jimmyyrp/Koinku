@@ -11,7 +11,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'KOIN KU - Financial Manager',
-  description: 'Manage your finances with Neobrutalist style',
+  description: 'Kelola keuangan pribadi dengan tampilan modern dan rapi',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#54D696',
+  themeColor: '#10b981',
 };
 
 export default function RootLayout({
@@ -41,7 +41,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="font-body antialiased bg-muted/30">
+      <body className="font-body antialiased bg-background">
         {children}
         <Toaster />
       </body>

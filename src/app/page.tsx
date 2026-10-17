@@ -12,20 +12,20 @@ import {
   CloudOff,
   Loader2,
   Activity,
-  LogOut
+  Sparkles
 } from 'lucide-react';
 import { Dashboard } from '@/app/components/Dashboard';
 import { TransactionList } from '@/app/components/TransactionList';
 import { TransactionForm } from '@/app/components/TransactionForm';
 import { ProfileView } from '@/app/components/ProfileView';
-import { LoginScreen } from '@/app/components/LoginScreen';
+import { InsightView } from '@/app/components/InsightView';
 import { Transaction, Category, INITIAL_CATEGORIES } from '@/app/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
-type View = 'dashboard' | 'transactions' | 'profile';
+type View = 'dashboard' | 'insights' | 'transactions' | 'profile';
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
@@ -42,50 +42,10 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [serverStatus, setServerStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const { toast } = useToast();
 
   const saveToCache = useCallback((type: 'transactions' | 'categories' | 'profile', data: any) => {
     localStorage.setItem(`koinku_${type}`, JSON.stringify(data));
-  }, []);
-
-  useEffect(() => {
-    const auth = localStorage.getItem('koinku_auth');
-    setIsAuthenticated(auth === 'true');
-  }, []);
-
-  const handleLogin = useCallback(async (username: string, password: string) => {
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-      if (res.ok && data?.ok) {
-        localStorage.setItem('koinku_auth', 'true');
-        setIsAuthenticated(true);
-        return { ok: true as const };
-      }
-      return {
-        ok: false as const,
-        message: data?.error || 'Server tidak merespons. Coba lagi beberapa saat.',
-      };
-    } catch (err) {
-      console.error('Login Error:', err);
-      return { ok: false as const, message: 'Tidak dapat terhubung ke server.' };
-    }
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('koinku_auth');
-    setIsAuthenticated(false);
-    setView('dashboard');
   }, []);
 
   const syncWithServer = useCallback(async () => {
@@ -129,7 +89,7 @@ export default function App() {
       // request lambat saat database tidak terjangkau.
       if (!allOk) return;
 
-      // Migrasi otomatis: dorong data cache lokal ke MongoDB jika server kosong
+      // Sinkronkan data cache lokal ke server jika server kosong
       // atau masih ada item dengan id sementara (negatif/string) yang belum di-sync
       const cachedTransactions = localStorage.getItem('koinku_transactions');
       const cachedCategories = localStorage.getItem('koinku_categories');
@@ -482,16 +442,12 @@ export default function App() {
     a.click();
   };
 
-  if (!mounted || isAuthenticated === null) {
+  if (!mounted) {
     return (
       <div className="min-h-[100dvh] w-full bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin opacity-40" />
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={handleLogin} />;
   }
 
   const status = (() => {
@@ -505,107 +461,117 @@ export default function App() {
       return { tone: 'error', label: 'Mode Lokal', sub: 'Server DB belum terjangkau', Icon: CloudOff };
     }
     if (serverStatus === 'ok') {
-      return { tone: 'ok', label: 'Tersinkron', sub: 'MongoDB terhubung', Icon: Wifi };
+      return { tone: 'ok', label: 'Tersinkron', sub: 'Supabase terhubung', Icon: Wifi };
     }
     return { tone: 'idle', label: 'Memeriksa...', sub: 'Mengecek koneksi', Icon: Wifi };
   })();
 
+  const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
+    { id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
+    { id: 'insights', label: 'Insight', icon: Sparkles },
+    { id: 'transactions', label: 'Riwayat', icon: History },
+    { id: 'profile', label: 'Akun', icon: User },
+  ];
+
+  const pageTitle = view === 'dashboard' ? 'Beranda' : view === 'insights' ? 'Insight' : view === 'transactions' ? 'Riwayat' : 'Pengaturan';
+
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-background overflow-hidden relative selection:bg-primary/30">
+    <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-background overflow-hidden relative">
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex w-72 flex-col bg-white border-r-4 border-black p-8 gap-8 shrink-0 h-full z-40">
-        <div className="flex items-center gap-4 px-2">
-          <div className="h-12 w-12 bg-black neo-border border-white flex items-center justify-center rounded-2xl neo-shadow-sm">
-            <CreditCard className="text-white h-6 w-6" />
+      <aside className="hidden md:flex w-72 flex-col bg-white/80 backdrop-blur-xl border-r border-border p-6 gap-6 shrink-0 h-full z-40">
+        <div className="flex items-center gap-3 px-1 pt-1">
+          <div className="h-11 w-11 bg-primary flex items-center justify-center rounded-2xl shadow-sm">
+            <CreditCard className="text-white h-5 w-5" />
           </div>
-          <h1 className="text-2xl font-black uppercase italic tracking-tighter leading-none">KOIN KU</h1>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight leading-none">KOIN KU</h1>
+            <p className="text-[11px] text-muted-foreground">Financial Vault</p>
+          </div>
         </div>
-        <button 
+
+        <button
           onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
-          className="w-full flex items-center justify-center gap-3 p-5 rounded-[24px] bg-primary text-white font-black uppercase text-[11px] tracking-widest neo-interactive neo-border neo-shadow-sm"
+          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-primary text-white font-semibold text-sm neo-interactive shadow-sm"
         >
-          <Plus className="h-5 w-5" /> Catat Baru
+          <Plus className="h-5 w-5" /> Catat Transaksi
         </button>
-        <nav className="flex-1 space-y-3">
-          {[
-            { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-            { id: 'transactions', label: 'Log', icon: History },
-            { id: 'profile', label: 'Akun', icon: User },
-          ].map((item) => (
+
+        <nav className="flex-1 space-y-1.5">
+          {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setView(item.id as View)}
+              onClick={() => setView(item.id)}
               className={cn(
-                "w-full flex items-center gap-4 p-5 rounded-[24px] font-black uppercase text-[11px] tracking-widest transition-all neo-interactive",
-                view === item.id ? "bg-secondary neo-border neo-shadow-sm translate-x-1" : "hover:bg-muted opacity-40"
+                "w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all",
+                view === item.id
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <item.icon className="h-5 w-5" /> {item.label}
             </button>
           ))}
         </nav>
+
         <div className={cn(
-          "p-4 rounded-[28px] border-2 border-dashed flex items-center gap-3 min-h-[72px]",
-          status.tone === 'offline' ? "bg-red-50 border-red-200" :
-          status.tone === 'error' ? "bg-amber-50 border-amber-300" :
-          status.tone === 'sync' ? "bg-primary/10 border-primary/30" :
-          "bg-primary/5 border-primary/20"
+          "p-4 rounded-2xl border flex items-center gap-3",
+          status.tone === 'offline' ? "bg-rose-50 border-rose-100" :
+          status.tone === 'error' ? "bg-amber-50 border-amber-100" :
+          status.tone === 'sync' ? "bg-primary/5 border-primary/15" :
+          "bg-emerald-50 border-emerald-100"
         )}>
           <status.Icon className={cn(
             "h-5 w-5 shrink-0",
-            status.tone === 'offline' ? "text-red-500" :
+            status.tone === 'offline' ? "text-rose-500" :
             status.tone === 'error' ? "text-amber-500" :
-            "text-primary",
+            "text-emerald-600",
             status.tone === 'sync' && "animate-spin"
           )} />
           <div className="min-w-0">
-            <p className={cn(
-              "font-black text-[10px] uppercase truncate",
-              status.tone === 'offline' ? "text-red-500" :
-              status.tone === 'error' ? "text-amber-600" :
-              "text-primary"
-            )}>
-              {status.label}
-            </p>
-            <p className="text-[8px] font-bold uppercase opacity-50 truncate">{status.sub}</p>
+            <p className="text-xs font-semibold truncate">{status.label}</p>
+            <p className="text-[11px] text-muted-foreground truncate">{status.sub}</p>
           </div>
         </div>
-        <button 
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] border-2 border-red-200 text-red-500 font-black uppercase text-[10px] tracking-widest neo-interactive hover:bg-red-50"
-        >
-          <LogOut className="h-4 w-4" /> Keluar
-        </button>
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
-        {/* Mobile Header */}
-        <header className="h-20 bg-white border-b-4 border-black px-6 md:px-10 flex items-center justify-between shrink-0 z-40">
-          <div className="flex items-center gap-4">
-            <div className="md:hidden h-10 w-10 bg-black rounded-xl flex items-center justify-center neo-border border-white/20">
+        {/* Header */}
+        <header className="h-16 md:h-20 bg-white/80 backdrop-blur-xl border-b border-border px-4 md:px-10 flex items-center justify-between shrink-0 z-40">
+          <div className="flex items-center gap-3">
+            <div className="md:hidden h-10 w-10 bg-primary rounded-xl flex items-center justify-center">
               <Activity className="text-white h-5 w-5" />
             </div>
-            <h2 className="text-[11px] sm:text-xs md:text-sm font-black uppercase tracking-[0.15em] sm:tracking-[0.3em] opacity-80 italic truncate">
-              {view === 'dashboard' ? 'Home' : view === 'transactions' ? 'Riwayat' : 'Pengaturan'}
+            <h2 className="text-lg md:text-xl font-bold tracking-tight truncate">
+              {pageTitle}
             </h2>
           </div>
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
              {!isOnline ? (
-               <WifiOff className="h-4 w-4 text-red-500" />
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full">
+                 <WifiOff className="h-3.5 w-3.5" /> Offline
+               </span>
              ) : serverStatus === 'error' ? (
-               <CloudOff className="h-4 w-4 text-amber-500" />
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full">
+                 <CloudOff className="h-3.5 w-3.5" /> Lokal
+               </span>
              ) : isSyncing ? (
-               <Loader2 className="h-4 w-4 animate-spin opacity-40" />
-             ) : null}
-             <Avatar className="h-10 w-10 neo-border border-2 neo-shadow-sm">
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sinkron
+               </span>
+             ) : (
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+                 <Wifi className="h-3.5 w-3.5" /> Tersinkron
+               </span>
+             )}
+             <Avatar className="h-10 w-10 ring-2 ring-border">
                <AvatarImage src={`https://picsum.photos/seed/user-pribadi/100`} alt="Avatar pengguna" />
-               <AvatarFallback>U</AvatarFallback>
+               <AvatarFallback className="bg-primary/10 text-primary font-semibold">U</AvatarFallback>
              </Avatar>
           </div>
         </header>
 
         {/* Content Area */}
-        <section className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar bg-[#f9fbf9] relative z-10">
+        <section className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar bg-background relative z-10">
           <div className="max-w-6xl mx-auto w-full pb-40 md:pb-10">
             {view === 'dashboard' && (
               <Dashboard 
@@ -613,6 +579,14 @@ export default function App() {
                 categories={categories} 
                 emergencyFundTarget={emergencyFundTarget} 
                 initialBalance={initialBalance} 
+              />
+            )}
+            {view === 'insights' && (
+              <InsightView
+                transactions={transactions}
+                categories={categories}
+                initialBalance={initialBalance}
+                emergencyFundTarget={emergencyFundTarget}
               />
             )}
             {view === 'transactions' && (
@@ -641,7 +615,6 @@ export default function App() {
                 onExportJSON={handleExportJSON}
                 onExportCSV={handleExportCSV}
                 onResetData={handleResetData}
-                onLogout={handleLogout}
               />
             )}
           </div>
@@ -649,32 +622,48 @@ export default function App() {
 
         {/* Mobile Navigation */}
         <div className="md:hidden fixed inset-x-0 bottom-0 px-4 pt-4 z-50 pointer-events-none safe-area-bottom">
-          <nav className="max-w-md mx-auto h-20 bg-white/95 backdrop-blur-xl neo-border rounded-[32px] px-2 flex items-center justify-between shadow-2xl pointer-events-auto">
-            <button onClick={() => setView('dashboard')} aria-label="Beranda" className={cn("flex-1 h-14 flex flex-col items-center justify-center rounded-2xl gap-1", view === 'dashboard' ? "bg-secondary neo-border neo-shadow-sm" : "opacity-40")}>
-              <LayoutDashboard className="h-5 w-5" />
-              <span className="text-[8px] font-black uppercase">Home</span>
-            </button>
-            <button onClick={() => setView('transactions')} aria-label="Riwayat transaksi" className={cn("flex-1 h-14 flex flex-col items-center justify-center rounded-2xl gap-1", view === 'transactions' ? "bg-secondary neo-border neo-shadow-sm" : "opacity-40")}>
-              <History className="h-5 w-5" />
-              <span className="text-[8px] font-black uppercase">Log</span>
-            </button>
+          <nav className="max-w-md mx-auto h-16 bg-white/95 backdrop-blur-xl border border-border rounded-[26px] px-1.5 flex items-center justify-between shadow-lg pointer-events-auto">
+            {navItems.slice(0, 2).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id)}
+                aria-label={item.label}
+                className={cn(
+                  "flex-1 h-12 flex flex-col items-center justify-center rounded-2xl gap-0.5 transition-colors",
+                  view === item.id ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            ))}
             <div className="flex-1 flex justify-center items-center">
-              <button onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }} aria-label="Catat transaksi baru" className="h-14 w-14 bg-primary text-white neo-border rounded-full flex items-center justify-center neo-interactive -translate-y-2 border-white/20 shadow-xl">
-                <Plus className="h-7 w-7" />
+              <button onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }} aria-label="Catat transaksi baru"                 className="h-14 w-14 p-3.5 bg-primary text-white rounded-full flex items-center justify-center neo-interactive -translate-y-3 shadow-lg">
+                <Plus className="h-6 w-6" />
               </button>
             </div>
-            <button onClick={() => setView('profile')} aria-label="Akun dan pengaturan" className={cn("flex-1 h-14 flex flex-col items-center justify-center rounded-2xl gap-1", view === 'profile' ? "bg-secondary neo-border neo-shadow-sm" : "opacity-40")}>
-              <User className="h-5 w-5" />
-              <span className="text-[8px] font-black uppercase">Akun</span>
-            </button>
+            {navItems.slice(2).map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id)}
+                aria-label={item.label}
+                className={cn(
+                  "flex-1 h-12 flex flex-col items-center justify-center rounded-2xl gap-0.5 transition-colors",
+                  view === item.id ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </button>
+            ))}
           </nav>
         </div>
       </main>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="p-0 bg-white max-w-lg w-[calc(100%-2rem)] sm:w-full h-[90dvh] rounded-[40px] sm:rounded-[40px] md:rounded-[48px] overflow-hidden flex flex-col neo-border shadow-2xl [&>button]:hidden">
+        <DialogContent className="p-0 bg-white max-w-lg w-[calc(100%-2rem)] sm:w-full h-[90dvh] rounded-[32px] overflow-hidden flex flex-col border border-border shadow-xl [&>button]:hidden">
           <DialogHeader className="p-6 pb-0 sr-only">
-            <DialogTitle>Form Transaksi Elit</DialogTitle>
+            <DialogTitle>Form Transaksi</DialogTitle>
             <DialogDescription>Catat pengeluaran atau pemasukan baru Anda.</DialogDescription>
           </DialogHeader>
           <TransactionForm 

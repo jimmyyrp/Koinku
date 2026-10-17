@@ -1,45 +1,67 @@
-# KOIN KU - Financial Manager 🪙
+# KOIN KU - Financial Manager
 
-Aplikasi manajemen keuangan pribadi dengan desain **Neobrutalisme** yang berani dan fungsional. Dibangun dengan Next.js 15, Tailwind CSS, dan **MongoDB Atlas** sebagai penyimpanan data.
+Aplikasi manajemen keuangan pribadi dengan desain neobrutalisme, Next.js 15, dan Supabase PostgreSQL.
 
-## ✨ Fitur Utama
+## Fitur
 
-- **Login Aman**: Akses aplikasi menggunakan kredensial database MongoDB (`koinku_db_user`), diverifikasi server-side.
-- **Database MongoDB**: Semua data tersimpan di MongoDB Atlas (profil, kategori, transaksi) melalui API route server-side.
-- **Migrasi Otomatis**: Struktur database, index unik, dan kategori default otomatis dibuat saat server pertama kali berjalan — tidak perlu menyentuh database.
-- **Offline-First & Auto-Sync**: Data tersimpan instan di perangkat (Cache Lokal) dan otomatis sinkron ke MongoDB saat internet tersedia, termasuk migrasi data lama dari cache lokal.
-- **Dashboard Interaktif**: Saldo, tren arus kas 7 hari, kontrol anggaran bulanan, dan target dana darurat.
-- **Input Cepat (Single-Page Form)**: Pencatatan transaksi efisien dengan pemisah ribuan otomatis.
-- **Manajemen Kategori Mandiri**: Tambah, hapus, dan atur anggaran kategori (pemasukan/pengeluaran).
-- **Sistem CRUD Lengkap**: Tambah, baca, edit, dan hapus transaksi dengan konfirmasi keamanan.
-- **Kontrol Data Pribadi**: Ekspor data ke JSON (Backup) atau CSV (Excel) dan reset total data.
-- **Desain Neobrutalisme**: Responsif dengan Sidebar (Desktop) dan Fixed Floating Navigation (Mobile).
+- Profil, kategori, dan transaksi disimpan di Supabase PostgreSQL.
+- API server-side memakai koneksi `DATABASE_URL`; secret key Supabase tidak dikirim ke browser.
+- Cache lokal dan sinkronisasi offline tetap tersedia.
+- Migrasi database SQL berurutan, transactional, dan tercatat dengan checksum.
+- Halaman Insight: skor kesehatan finansial, tren & proyeksi, analisis kategori, serta tips otomatis.
 
-## 🚀 Menjalankan
+## Menyiapkan aplikasi
 
-1. Salin `.env.example` menjadi `.env.local` lalu isi `MONGODB_URI` (dan `MONGODB_DB`).
-2. Install dependensi: `npm install`
-3. Jalankan aplikasi: `npm run dev` (otomatis migrasi dijalankan saat server start)
-4. (Opsional) Migrasi manual: `npm run migrate`
+1. Salin `.env.example` menjadi `.env.local`.
+2. Isi nilai Supabase project dan `DATABASE_URL` dari Supabase Dashboard → Project Settings → Database.
+   Pastikan password pada URL di-percent-encode bila mengandung karakter khusus (contoh `&` menjadi `%26`).
+   Jika sertifikat Supabase tidak dipercaya oleh Node.js pada mesin ini, unduh root CA dari Dashboard → Database → SSL Certificate,
+   simpan di path lokal yang tidak di-commit, lalu isi `DATABASE_SSL_ROOT_CERT_PATH`. Koneksi selalu memverifikasi sertifikat dan hostname;
+   aplikasi tetap mewajibkan TLS meskipun URL memiliki parameter `sslmode` yang bertentangan. Jangan menonaktifkan verifikasi TLS
+    untuk mengatasi error sertifikat. Secret key dan kredensial database harus tetap server-side;
+   jangan beri awalan `NEXT_PUBLIC_`.
+3. Install dependencies dengan `npm install`.
+4. Terapkan migrasi SQL ke database yang dipilih:
 
-Login default menggunakan kredensial MongoDB Atlas kamu:
-- **Username**: `koinku_db_user`
-- **Password**: (password database Atlas yang kamu buat)
+   ```bash
+   npm run migrate
+   ```
 
-## 🗄️ Struktur Database
+5. Jalankan aplikasi:
 
-| Koleksi | Kegunaan |
+   ```bash
+   npm run dev
+   ```
+
+Migrasi tidak berjalan otomatis ketika server aplikasi dimulai. Runner membaca file SQL di `supabase/migrations/`, mengambil advisory lock, menerapkan tiap file dalam transaksi, lalu mencatat SHA-256. Menjalankan `npm run migrate` kembali aman: migrasi yang sudah tercatat dilewati, dan perubahan pada file yang sudah diterapkan akan ditolak.
+
+## Migrasi
+
+File SQL migrasi diberi nama `YYYYMMDDNNNN_nama_migrasi.sql` dan diterapkan secara berurutan. Migrasi awal membuat:
+
+| Tabel | Kegunaan |
 |---|---|
-| `profiles` | Saldo awal & target dana darurat (id: `global`) |
-| `categories` | Klasifikasi transaksi + anggaran bulanan |
-| `transactions` | Riwayat pemasukan / pengeluaran |
+| `public.profiles` | Saldo awal dan target dana darurat |
+| `public.categories` | Kategori pemasukan/pengeluaran dan anggaran |
+| `public.transactions` | Transaksi dan referensi kategori |
+| `public.schema_migrations` | Riwayat migrasi yang dikelola runner |
 
-## ☁️ Push ke GitHub (Aman)
+Jangan mengedit file migrasi yang sudah berhasil diterapkan; tambahkan file baru untuk perubahan schema. Migrasi awal hanya membuat tabel/index dan seed profil/kategori awal.
 
-`.gitignore` sudah melindungi file sensitif (`node_modules`, `.env.local`, dll).
+## Skrip
 
-1. `git add .`
-2. `git commit -m "Initial commit KOIN KU"`
-3. `git push -u origin main`
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Menjalankan Next.js pada port 9002 |
+| `npm run migrate` | Menerapkan migrasi SQL ke `DATABASE_URL` |
+| `npm run typecheck` | Memeriksa TypeScript |
+| `npm run lint` | Menjalankan ESLint |
+| `npm run build` | Membuat production build |
 
-*PENTING: Jangan pernah menghapus file `.gitignore` dan jangan pernah commit `.env.local` agar kredensial database tetap aman.*
+## Keamanan dan deployment
+
+- `.env.local` sudah dikecualikan oleh `.gitignore`; jangan pernah commit kredensial.
+- `SUPABASE_SECRET_KEY` dan `DATABASE_URL` hanya untuk environment server.
+- Row Level Security aktif tanpa policy publik; akses aplikasi dilakukan oleh server melalui koneksi PostgreSQL.
+- Pada deployment, set semua environment variable di pengaturan provider hosting dan jalankan `npm run migrate` terhadap database yang dituju sebelum rilis.
+- Jangan menaruh password PostgreSQL atau secret key Supabase dalam log, screenshot, atau variabel `NEXT_PUBLIC_*`.

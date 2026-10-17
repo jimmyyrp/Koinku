@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  User, 
   Trash2, 
   Database, 
   Target, 
@@ -14,11 +13,9 @@ import {
   Plus, 
   Search, 
   Zap,
-  UploadCloud,
   Loader2,
   AlertTriangle,
-  Wallet,
-  LogOut
+  Wallet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogFooter } from '@/components/ui/alert-dialog';
 import { Category, Transaction } from '@/app/lib/types';
 import { cn } from '@/lib/utils';
+import { formatNumber } from '@/lib/format';
 
 interface ProfileViewProps {
   transactions: Transaction[];
@@ -44,7 +42,6 @@ interface ProfileViewProps {
   onExportJSON: () => void;
   onExportCSV: () => void;
   onResetData: () => void;
-  onLogout: () => void;
 }
 
 export function ProfileView({
@@ -63,8 +60,7 @@ export function ProfileView({
   onPushMissingCategories,
   onExportJSON,
   onExportCSV,
-  onResetData,
-  onLogout
+  onResetData
 }: ProfileViewProps) {
   const [tempBalance, setTempBalance] = useState(initialBalance);
   const [tempTarget, setTempTarget] = useState(emergencyFundTarget);
@@ -104,72 +100,69 @@ export function ProfileView({
       .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()));
   }, [categories, catFilter, catSearch]);
 
-  const formatDots = (val: number) => val.toLocaleString('id-ID');
-
   return (
-    <div className="max-w-4xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4">
+    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
       {/* Profile Header */}
-      <div className="neo-card bg-white p-6 md:p-10 flex flex-col items-center text-center">
-        <Avatar className="h-24 w-24 md:h-28 md:w-28 neo-border border-4 mb-5 md:mb-6 shadow-xl">
+      <div className="soft-card p-6 md:p-8 flex flex-col items-center text-center">
+        <Avatar className="h-20 w-20 md:h-24 md:w-24 mb-4 ring-4 ring-primary/10">
           <AvatarImage src={`https://picsum.photos/seed/koin-ku-pro/150`} alt="Avatar profil" />
-          <AvatarFallback>U</AvatarFallback>
+          <AvatarFallback className="bg-primary/10 text-primary font-semibold text-xl">U</AvatarFallback>
         </Avatar>
-        <h3 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter break-words">Profil Finansial Elit</h3>
-        <p className="text-[10px] font-black uppercase opacity-40 mt-2 tracking-widest italic">Solo Edition Pro v6.0</p>
+        <h3 className="text-xl md:text-2xl font-bold tracking-tight">Profil Finansial</h3>
+        <p className="text-xs text-muted-foreground mt-1">Solo Edition Pro v6.0</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
-        <div className="md:col-span-7 space-y-6 md:space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="md:col-span-7 space-y-6">
           
           {/* Health Score Card */}
           <div className={cn(
-            "neo-card border-b-[12px] p-5 md:p-8 flex items-center justify-between gap-3 transition-all",
-            stats.healthScore > 70 ? "bg-green-50" : stats.healthScore > 40 ? "bg-blue-50" : "bg-amber-50"
+            "soft-card border flex items-center justify-between gap-3 p-5 md:p-6",
+            stats.healthScore > 70 ? "bg-emerald-50 border-emerald-100" : stats.healthScore > 40 ? "bg-sky-50 border-sky-100" : "bg-amber-50 border-amber-100"
           )}>
-            <div className="flex items-center gap-4 md:gap-5 min-w-0">
-              <div className="h-14 w-14 md:h-16 md:w-16 rounded-full neo-border border-4 bg-white flex items-center justify-center relative shrink-0">
-                <Zap className={cn("h-7 w-7 md:h-8 md:w-8", stats.healthScore > 40 ? "text-primary" : "text-amber-500")} />
-                <div className="absolute -top-1 -right-1 bg-black text-white text-[9px] font-black px-1.5 py-0.5 rounded-full neo-border">VITALITY</div>
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="h-14 w-14 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-sm">
+                <Zap className={cn("h-6 w-6", stats.healthScore > 40 ? "text-primary" : "text-amber-500")} />
               </div>
               <div className="min-w-0">
-                 <h4 className="text-xl md:text-2xl font-black italic tracking-tighter">{Math.round(stats.healthScore)} / 100</h4>
-                 <p className="text-[10px] font-black uppercase opacity-40 italic truncate">Financial Health Status</p>
+                 <h4 className="text-xl md:text-2xl font-bold tracking-tight tabular-nums">{Math.round(stats.healthScore)} / 100</h4>
+                 <p className="text-xs text-muted-foreground truncate">Skor Kesehatan Finansial</p>
               </div>
             </div>
             <div className="text-right hidden sm:block shrink-0">
-              <p className="text-[9px] font-black uppercase opacity-40 mb-1">Performa</p>
-              <p className={cn("text-xs font-black uppercase italic", stats.healthScore > 50 ? "text-primary" : "text-amber-600")}>
+              <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Performa</p>
+              <p className={cn("text-sm font-semibold", stats.healthScore > 50 ? "text-primary" : "text-amber-600")}>
                 {stats.healthScore > 70 ? 'Optimal' : stats.healthScore > 40 ? 'Stabil' : 'Waspada'}
               </p>
             </div>
           </div>
 
           {/* Category Management */}
-          <div className="neo-card bg-white p-5 md:p-8 border-b-[12px] space-y-6">
-            <div className="flex flex-col gap-4 border-b-2 border-black/5 pb-4">
-              <div className="flex items-center gap-3">
-                <Settings className="h-5 w-5 text-secondary" />
-                <h4 className="font-black uppercase text-sm italic">Kelola Kategori & Anggaran</h4>
+          <div className="soft-card space-y-6">
+            <div className="flex flex-col gap-4 border-b border-border pb-4">
+              <div className="flex items-center gap-2.5">
+                <Settings className="h-4 w-4 text-primary" />
+                <h4 className="font-semibold text-sm">Kelola Kategori & Anggaran</h4>
               </div>
               <div className="relative w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 opacity-30" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
                   placeholder="Cari kategori..." 
                   value={catSearch}
                   onChange={(e) => setCatSearch(e.target.value)}
-                  className="neo-border rounded-xl h-12 pl-12 text-[11px] font-bold w-full"
+                  className="rounded-xl h-11 pl-11 text-sm font-medium w-full border-border"
                 />
               </div>
             </div>
             
-            <div className="flex gap-2 p-1.5 bg-muted rounded-2xl neo-border w-full">
+            <div className="flex gap-1 p-1 bg-muted rounded-2xl w-full">
               {(['expense', 'income'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setCatFilter(type)}
                   className={cn(
-                    "flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all",
-                    catFilter === type ? "bg-black text-white neo-shadow-sm" : "opacity-40 hover:opacity-100"
+                    "flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all",
+                    catFilter === type ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {type === 'expense' ? 'Pengeluaran' : 'Pemasukan'}
@@ -178,14 +171,14 @@ export function ProfileView({
             </div>
 
             <div className="space-y-4">
-              <div className="flex flex-col gap-2 bg-muted/20 p-4 rounded-2xl neo-border">
-                <p className="text-[9px] font-black uppercase opacity-40">Tambah Kategori Baru</p>
+              <div className="flex flex-col gap-2 bg-muted/50 p-4 rounded-2xl border border-border">
+                <p className="text-[11px] font-medium text-muted-foreground">Tambah Kategori Baru</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input 
                     placeholder="Nama Kategori..." 
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
-                    className="neo-border rounded-xl h-12 text-[11px] font-bold w-full sm:flex-1 min-w-0"
+                    className="rounded-xl h-11 text-sm font-medium w-full sm:flex-1 min-w-0 border-border"
                   />
                   {catFilter === 'expense' && (
                     <Input 
@@ -193,60 +186,60 @@ export function ProfileView({
                       inputMode="numeric"
                       value={newCatBudget === 0 ? '' : newCatBudget.toLocaleString('id-ID')}
                       onChange={(e) => setNewCatBudget(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                      className="neo-border rounded-xl h-12 text-[11px] font-bold w-full sm:w-36 min-w-0"
+                      className="rounded-xl h-11 text-sm font-medium w-full sm:w-36 min-w-0 border-border"
                     />
                   )}
-                  <Button onClick={() => { onAddCategory(newCatName, catFilter, newCatBudget); setNewCatName(''); setNewCatBudget(0); }} disabled={!newCatName} aria-label="Tambah kategori" className="h-12 w-full sm:w-12 bg-black text-white neo-border rounded-xl shrink-0">
-                    <Plus className="h-5 w-5" />
+                  <Button onClick={() => { onAddCategory(newCatName, catFilter, newCatBudget); setNewCatName(''); setNewCatBudget(0); }} disabled={!newCatName} aria-label="Tambah kategori" className="h-11 w-full sm:w-11 bg-primary text-white rounded-xl shrink-0">
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 max-h-[450px] overflow-y-auto pr-2 no-scrollbar">
+              <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto pr-1 no-scrollbar">
                 {filteredCategories.map((cat) => (
-                  <div key={cat.id} className="flex flex-col gap-3 p-4 bg-white neo-border rounded-2xl group hover:bg-muted/10 transition-colors">
+                  <div key={cat.id} className="flex flex-col gap-3 p-4 bg-white border border-border rounded-2xl">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 overflow-hidden">
-                        <div className="h-5 w-5 rounded-full shrink-0 neo-border" style={{ backgroundColor: cat.color }} />
-                        <span className="text-[11px] font-black uppercase truncate block">{cat.name}</span>
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                        <span className="text-sm font-medium truncate block">{cat.name}</span>
                       </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                          <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="neo-border rounded-[32px] sm:rounded-[32px]">
+                        <AlertDialogContent className="rounded-3xl">
                           <AlertDialogHeader>
-                            <AlertDialogTitle className="font-black italic text-xl">Hapus Kategori?</AlertDialogTitle>
-                            <AlertDialogDescription className="font-bold">Aksi ini akan menghapus kategori "{cat.name}".</AlertDialogDescription>
+                            <AlertDialogTitle className="font-semibold text-lg">Hapus Kategori?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-sm">Aksi ini akan menghapus kategori "{cat.name}".</AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel className="neo-border rounded-xl">Batal</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => onDeleteCategory(cat.id)} className="neo-border bg-destructive text-white rounded-xl">Ya, Hapus</AlertDialogAction>
+                            <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => onDeleteCategory(cat.id)} className="bg-destructive text-white rounded-xl">Ya, Hapus</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
                     
                     {cat.type === 'expense' && (
-                      <div className="flex items-center gap-3 bg-muted/30 p-3 rounded-xl neo-border border-dashed">
-                        <Wallet className="h-3.5 w-3.5 opacity-30" />
+                      <div className="flex items-center gap-3 bg-muted/50 p-3 rounded-xl">
+                        <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
                         <div className="flex-1">
-                          <p className="text-[9px] font-black uppercase opacity-40">Batas Anggaran Bulanan</p>
+                          <p className="text-[10px] font-medium text-muted-foreground">Batas Anggaran Bulanan</p>
                           <div className="flex items-center gap-2">
-                             <span className="text-[10px] font-black italic">Rp</span>
+                             <span className="text-xs font-semibold">Rp</span>
                              <input 
                                type="text"
                                value={cat.budget?.toLocaleString('id-ID') || '0'}
                                onChange={(e) => onUpdateCategoryBudget(cat.id, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)}
-                               className="bg-transparent border-none focus:outline-none text-[12px] font-black w-full"
+                               className="bg-transparent border-none focus:outline-none text-sm font-semibold w-full"
                              />
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-[9px] font-black uppercase opacity-40">Terpakai</p>
-                          <p className={cn("text-[10px] font-black tabular-nums", (categoryUsage[cat.id] || 0) > (cat.budget || 0) && cat.budget ? "text-red-500" : "text-primary")}>
+                          <p className="text-[10px] font-medium text-muted-foreground">Terpakai</p>
+                          <p className={cn("text-xs font-semibold tabular-nums", (categoryUsage[cat.id] || 0) > (cat.budget || 0) && cat.budget ? "text-rose-500" : "text-primary")}>
                             {cat.budget ? `${Math.min(Math.round(((categoryUsage[cat.id] || 0) / cat.budget) * 100), 999)}%` : '—'}
                           </p>
                         </div>
@@ -254,49 +247,52 @@ export function ProfileView({
                     )}
                   </div>
                 ))}
+                {filteredCategories.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Tidak ada kategori.</p>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="md:col-span-5 space-y-6 md:space-y-8">
+        <div className="md:col-span-5 space-y-6">
           {/* Targets & Balance */}
-          <div className="neo-card bg-white p-5 md:p-8 border-b-[12px] space-y-6">
-            <div className="flex items-center gap-3 border-b-2 border-black/5 pb-4">
-              <Target className="h-5 w-5 text-accent" />
-              <h4 className="font-black uppercase text-sm italic">Target & Saldo</h4>
+          <div className="soft-card space-y-6">
+            <div className="flex items-center gap-2.5 border-b border-border pb-4">
+              <Target className="h-4 w-4 text-accent" />
+              <h4 className="font-semibold text-sm">Target & Saldo</h4>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase opacity-40 tracking-widest">Saldo Awal</label>
+                <label className="text-[11px] font-medium text-muted-foreground">Saldo Awal</label>
                 <div className="relative">
-                  <span className="absolute left-3.5 md:left-4 top-1/2 -translate-y-1/2 font-black opacity-30">Rp</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-muted-foreground">Rp</span>
                   <Input 
                     type="text" 
                     inputMode="numeric"
-                    value={formatDots(tempBalance)} 
+                    value={formatNumber(tempBalance)} 
                     onChange={(e) => setTempBalance(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} 
-                    className="neo-border h-14 md:h-16 pl-11 md:pl-12 font-black text-lg md:text-2xl rounded-2xl bg-muted/20 focus:bg-white transition-all tabular-nums" 
+                    className="h-14 pl-12 font-bold text-lg rounded-2xl bg-muted/40 border-border tabular-nums" 
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase opacity-40 tracking-widest">Target Dana Darurat</label>
+                <label className="text-[11px] font-medium text-muted-foreground">Target Dana Darurat</label>
                 <div className="relative">
-                  <span className="absolute left-3.5 md:left-4 top-1/2 -translate-y-1/2 font-black opacity-30">Rp</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-muted-foreground">Rp</span>
                   <Input 
                     type="text" 
                     inputMode="numeric"
-                    value={formatDots(tempTarget)} 
+                    value={formatNumber(tempTarget)} 
                     onChange={(e) => setTempTarget(parseInt(e.target.value.replace(/\D/g, ''), 10) || 0)} 
-                    className="neo-border h-14 md:h-16 pl-11 md:pl-12 font-black text-lg md:text-2xl rounded-2xl bg-muted/20 focus:bg-white transition-all tabular-nums" 
+                    className="h-14 pl-12 font-bold text-lg rounded-2xl bg-muted/40 border-border tabular-nums" 
                   />
                 </div>
               </div>
               <Button 
                 onClick={() => onUpdateProfile(tempBalance, tempTarget)} 
                 disabled={isSavingProfile}
-                className="w-full h-16 neo-border bg-black text-white hover:bg-primary font-black uppercase text-[11px] rounded-[24px] flex gap-3 transition-all"
+                className="w-full h-14 bg-primary text-white hover:bg-primary/90 font-semibold text-sm rounded-2xl flex gap-2 transition-all"
               >
                 {isSavingProfile ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
                 Simpan Profil
@@ -305,42 +301,46 @@ export function ProfileView({
           </div>
 
           {/* Data Controls */}
-          <div className="neo-card bg-white p-5 md:p-8 border-b-[12px] space-y-6">
-            <div className="flex items-center gap-3 border-b-2 border-black/5 pb-4">
-              <Database className="h-5 w-5 text-primary" />
-              <h4 className="font-black uppercase text-sm italic">Kontrol Data</h4>
+          <div className="soft-card space-y-5">
+            <div className="flex items-center gap-2.5 border-b border-border pb-4">
+              <Database className="h-4 w-4 text-primary" />
+              <h4 className="font-semibold text-sm">Kontrol Data</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-3">
-              <Button onClick={onExportJSON} variant="outline" className="h-14 neo-border rounded-xl font-black uppercase text-[10px] flex gap-2">
-                <FileJson className="h-4 w-4" /> Backup JSON (Private)
+              <Button onClick={onExportJSON} variant="outline" className="h-12 rounded-xl font-medium text-sm flex gap-2 border-border">
+                <FileJson className="h-4 w-4" /> Backup JSON
               </Button>
-              <Button onClick={onExportCSV} variant="outline" className="h-14 neo-border rounded-xl font-black uppercase text-[10px] flex gap-2">
-                <FileSpreadsheet className="h-4 w-4" /> Laporan CSV (Excel)
+              <Button onClick={onExportCSV} variant="outline" className="h-12 rounded-xl font-medium text-sm flex gap-2 border-border">
+                <FileSpreadsheet className="h-4 w-4" /> Laporan CSV
               </Button>
             </div>
+
+            {missingSystemCategories.length > 0 && (
+              <Button onClick={onPushMissingCategories} disabled={isSyncingCategories || !isOnline} variant="outline" className="w-full h-12 rounded-xl font-medium text-sm flex gap-2 border-border">
+                {isSyncingCategories ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+                Sinkron Kategori Sistem
+              </Button>
+            )}
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full h-14 neo-border rounded-xl font-black uppercase text-[10px] flex gap-2">
+                <Button variant="outline" className="w-full h-12 rounded-xl font-medium text-sm flex gap-2 border-rose-200 text-rose-600 hover:bg-rose-50">
                   <Trash2 className="h-4 w-4" /> Bersihkan Seluruh Data
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="neo-border rounded-[32px] sm:rounded-[32px]">
+              <AlertDialogContent className="rounded-3xl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="font-black italic text-xl flex items-center gap-3">
-                    <AlertTriangle className="text-red-500" /> Hapus Semua Data?
+                  <AlertDialogTitle className="font-semibold text-lg flex items-center gap-2">
+                    <AlertTriangle className="text-rose-500 h-5 w-5" /> Hapus Semua Data?
                   </AlertDialogTitle>
-                  <AlertDialogDescription className="font-bold">Ini adalah aksi permanen. Seluruh riwayat Anda akan hilang selamanya.</AlertDialogDescription>
+                  <AlertDialogDescription className="text-sm">Ini adalah aksi permanen. Seluruh riwayat Anda akan hilang selamanya.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="neo-border rounded-xl">Batal</AlertDialogCancel>
-                  <AlertDialogAction onClick={onResetData} className="neo-border bg-destructive text-white rounded-xl">HAPUS PERMANEN</AlertDialogAction>
+                  <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
+                  <AlertDialogAction onClick={onResetData} className="bg-destructive text-white rounded-xl">HAPUS PERMANEN</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-
-            <Button onClick={onLogout} variant="outline" className="w-full h-14 neo-border rounded-xl font-black uppercase text-[10px] flex gap-2 border-red-300 text-red-500 hover:bg-red-50">
-              <LogOut className="h-4 w-4" /> Keluar (Logout)
-            </Button>
           </div>
         </div>
       </div>

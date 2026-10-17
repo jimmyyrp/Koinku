@@ -23,6 +23,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { formatCurrency, formatShortDate } from '@/lib/format';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -98,18 +99,10 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
       ? (monthlyTotals.monthlyIncome - monthlyTotals.monthlyExpense) / monthlyTotals.monthlyIncome 
       : 0;
     
-    if (savingsRatio > 0.3) return { label: 'Sangat Sehat', color: 'text-green-600', bg: 'bg-green-100', icon: Heart };
-    if (savingsRatio > 0) return { label: 'Stabil', color: 'text-blue-600', bg: 'bg-blue-100', icon: Activity };
-    return { label: 'Perlu Perhatian', color: 'text-amber-600', bg: 'bg-amber-100', icon: AlertCircle };
+    if (savingsRatio > 0.3) return { label: 'Sangat Sehat', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: Heart };
+    if (savingsRatio > 0) return { label: 'Stabil', color: 'text-sky-600', bg: 'bg-sky-50', icon: Activity };
+    return { label: 'Perlu Perhatian', color: 'text-amber-600', bg: 'bg-amber-50', icon: AlertCircle };
   }, [monthlyTotals]);
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      maximumFractionDigits: 0
-    }).format(val);
-  };
 
   const chartData = useMemo(() => {
     if (!mounted) return [];
@@ -133,59 +126,65 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
   if (!mounted) return null;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-      <div className="lg:col-span-8 space-y-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+      <div className="lg:col-span-8 space-y-6 md:space-y-8">
         {/* Main Wallet Card */}
-        <div className="neo-card bg-white p-6 md:p-8 border-b-[12px] flex flex-col gap-8">
+        <div className="soft-card p-6 md:p-8 flex flex-col gap-8">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2 opacity-40">
-                <Wallet className="h-3.5 w-3.5" />
-                <p className="text-[10px] font-black uppercase tracking-widest">Saldo Saat Ini</p>
+              <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+                <Wallet className="h-4 w-4" />
+                <p className="text-xs font-medium">Saldo Saat Ini</p>
               </div>
-              <h3 className="text-[clamp(1.75rem,7vw,3.75rem)] font-black tracking-tighter italic tabular-nums break-words leading-none">
+              <h3 className="text-[clamp(1.75rem,7vw,3.25rem)] font-bold tracking-tight tabular-nums break-words leading-none">
                 {formatCurrency(currentBalance)}
               </h3>
             </div>
-            <div className={cn("px-6 py-4 rounded-2xl neo-border flex items-center gap-3", healthStatus.bg)}>
-              <healthStatus.icon className={cn("h-6 w-6 animate-pulse-soft", healthStatus.color)} />
+            <div className={cn("px-4 py-3 rounded-2xl border flex items-center gap-3", healthStatus.bg, "border-border")}>
+              <healthStatus.icon className={cn("h-5 w-5 animate-pulse-soft", healthStatus.color)} />
               <div className="text-left">
-                <p className="text-[9px] font-black uppercase opacity-40">Kesehatan</p>
-                <p className={cn("text-xs font-black uppercase italic", healthStatus.color)}>{healthStatus.label}</p>
+                <p className="text-[10px] font-medium text-muted-foreground">Kesehatan</p>
+                <p className={cn("text-sm font-semibold", healthStatus.color)}>{healthStatus.label}</p>
               </div>
             </div>
           </div>
             
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="p-3 bg-muted rounded-xl neo-border text-center min-w-0">
-              <p className="text-[9px] font-black uppercase opacity-50 mb-1">Awal</p>
-              <p className="font-black text-[10px] tabular-nums truncate">{formatCurrency(initialBalance)}</p>
+            <div className="p-3 bg-muted rounded-xl text-center min-w-0">
+              <p className="text-[10px] font-medium text-muted-foreground mb-1">Awal</p>
+              <p className="font-semibold text-[11px] tabular-nums truncate">{formatCurrency(initialBalance)}</p>
             </div>
-            <div className="p-3 bg-green-50 rounded-xl neo-border text-center min-w-0">
-              <p className="text-[9px] font-black uppercase text-green-700 mb-1">Pemasukan</p>
-              <p className="font-black text-[10px] text-green-800 tabular-nums truncate">+{formatCurrency(monthlyTotals.monthlyIncome)}</p>
+            <div className="p-3 bg-emerald-50 rounded-xl text-center min-w-0">
+              <p className="text-[10px] font-medium text-emerald-700 mb-1">Pemasukan</p>
+              <p className="font-semibold text-[11px] text-emerald-700 tabular-nums truncate">+{formatCurrency(monthlyTotals.monthlyIncome)}</p>
             </div>
-            <div className="p-3 bg-red-50 rounded-xl neo-border text-center min-w-0">
-              <p className="text-[9px] font-black uppercase text-red-700 mb-1">Pengeluaran</p>
-              <p className="font-black text-[10px] text-red-800 tabular-nums truncate">-{formatCurrency(monthlyTotals.monthlyExpense)}</p>
+            <div className="p-3 bg-rose-50 rounded-xl text-center min-w-0">
+              <p className="text-[10px] font-medium text-rose-700 mb-1">Pengeluaran</p>
+              <p className="font-semibold text-[11px] text-rose-700 tabular-nums truncate">-{formatCurrency(monthlyTotals.monthlyExpense)}</p>
             </div>
           </div>
 
           <div className="space-y-4">
-             <div className="flex items-center gap-2 opacity-30">
-               <CalendarDays className="h-3 w-3" />
-               <p className="text-[9px] font-black uppercase tracking-widest">Tren Arus Kas 7 Hari Terakhir</p>
+             <div className="flex items-center gap-2 text-muted-foreground">
+               <CalendarDays className="h-3.5 w-3.5" />
+               <p className="text-[11px] font-medium">Tren Arus Kas 7 Hari Terakhir</p>
              </div>
              <div className="h-44 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="cashflow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <XAxis dataKey="name" hide />
                   <RechartsTooltip content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-black text-white p-3 rounded-xl neo-border border-white/20 text-[10px] font-black uppercase shadow-2xl">
-                          <p>{payload[0].payload.name}</p>
-                          <p className={(payload[0].value as number) >= 0 ? "text-green-400" : "text-red-400"}>
+                        <div className="bg-white border border-border p-3 rounded-xl text-xs shadow-lg">
+                          <p className="text-muted-foreground mb-0.5">{payload[0].payload.name}</p>
+                          <p className={cn("font-semibold", (payload[0].value as number) >= 0 ? "text-emerald-600" : "text-rose-600")}>
                             {formatCurrency(payload[0].value as number)}
                           </p>
                         </div>
@@ -193,7 +192,7 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
                     }
                     return null;
                   }} />
-                  <Area type="monotone" dataKey="balance" stroke="#000" strokeWidth={4} fill="#54D696" fillOpacity={0.2} />
+                  <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={3} fill="url(#cashflow)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -201,27 +200,27 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
         </div>
       </div>
 
-      <div className="lg:col-span-4 space-y-8">
+      <div className="lg:col-span-4 space-y-6 md:space-y-8">
         {/* Budget vs Actual Tracker */}
-        <div className="neo-card bg-white p-6 border-b-[10px] space-y-6">
-          <div className="flex items-center gap-3 opacity-30">
+        <div className="soft-card">
+          <div className="flex items-center gap-2 text-muted-foreground mb-6">
             <Gauge className="h-4 w-4" />
-            <h4 className="font-black text-[10px] uppercase tracking-widest">Kontrol Anggaran Bulanan</h4>
+            <h4 className="text-sm font-semibold">Anggaran Bulanan</h4>
           </div>
           <div className="space-y-5">
             {budgetAnalysis.slice(0, 3).map((item) => (
               <div key={item.id} className="space-y-2">
-                <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                  <span className="truncate max-w-[45%] shrink-0">{item.name}</span>
-                  <span className={cn("tabular-nums text-right", item.percent > 90 ? "text-red-600" : "opacity-40")}>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-medium truncate max-w-[45%]">{item.name}</span>
+                  <span className={cn("tabular-nums text-right", item.percent > 90 ? "text-rose-600 font-semibold" : "text-muted-foreground")}>
                     {formatCurrency(item.spent)} / {formatCurrency(item.budget || 0)}
                   </span>
                 </div>
-                <div className="h-3 w-full bg-muted rounded-full overflow-hidden neo-border">
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                   <div 
                     className={cn(
-                      "h-full transition-all duration-1000",
-                      item.percent > 100 ? "bg-red-500" : item.percent > 75 ? "bg-amber-400" : "bg-primary"
+                      "h-full transition-all duration-1000 rounded-full",
+                      item.percent > 100 ? "bg-rose-500" : item.percent > 75 ? "bg-amber-400" : "bg-primary"
                     )}
                     style={{ width: `${Math.min(item.percent, 100)}%` }}
                   />
@@ -229,54 +228,57 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
               </div>
             ))}
             {budgetAnalysis.length === 0 && (
-              <p className="text-[9px] font-bold italic opacity-20 text-center py-4 uppercase">Belum ada anggaran diset.</p>
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada anggaran diset.</p>
             )}
           </div>
         </div>
 
         {/* Savings Target Card */}
-        <div className="neo-card bg-accent/10 p-8 border-b-[10px]">
+        <div className="soft-card bg-primary/5">
           <div className="flex justify-between items-center mb-6">
-            <div className="h-12 w-12 bg-white neo-border flex items-center justify-center rounded-2xl neo-shadow-sm">
-              <Target className={cn("h-6 w-6", progressPercentage >= 100 ? "text-green-600" : "text-accent")} />
+            <div className="h-11 w-11 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+              <Target className={cn("h-5 w-5", progressPercentage >= 100 ? "text-emerald-600" : "text-primary")} />
             </div>
             <div className="text-right">
-               <span className="font-black text-2xl italic tracking-tighter block">{Math.round(progressPercentage)}%</span>
-               <span className="text-[9px] font-black uppercase opacity-30">Dana Darurat</span>
+               <span className="font-bold text-2xl tracking-tight block tabular-nums">{Math.round(progressPercentage)}%</span>
+               <span className="text-[11px] text-muted-foreground">Dana Darurat</span>
             </div>
           </div>
-          <h4 className="font-black text-xs uppercase tracking-widest mb-1">Target Tabungan</h4>
-          <div className="flex items-center gap-2 mb-4">
-             <span className="text-[10px] font-black">{formatCurrency(currentBalance)}</span>
-             <ArrowRight className="h-3 w-3 opacity-20" />
-             <span className="text-[10px] font-black opacity-40">{formatCurrency(emergencyFundTarget)}</span>
+          <h4 className="text-sm font-semibold mb-2">Target Tabungan</h4>
+          <div className="flex items-center gap-2 mb-4 text-xs">
+             <span className="font-semibold">{formatCurrency(currentBalance)}</span>
+             <ArrowRight className="h-3 w-3 text-muted-foreground" />
+             <span className="text-muted-foreground">{formatCurrency(emergencyFundTarget)}</span>
           </div>
-          <Progress value={progressPercentage} className="h-6 neo-border border-2 bg-white rounded-xl overflow-hidden shadow-inner" />
+          <Progress value={progressPercentage} className="h-3 bg-white rounded-full overflow-hidden" />
         </div>
 
         {/* Recent Activity */}
         <div className="space-y-4">
-          <h4 className="font-black uppercase text-[10px] tracking-widest opacity-30">Aktivitas Terakhir</h4>
+          <h4 className="text-sm font-semibold text-muted-foreground">Aktivitas Terakhir</h4>
           <div className="space-y-3">
             {recentTransactions.map((t) => {
               const cat = categories.find(c => c.id === t.categoryId);
               return (
-                <div key={t.id} className="neo-card bg-white p-4 flex items-center justify-between border-b-4 hover:translate-x-1 transition-transform">
+                <div key={t.id} className="soft-card p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="h-8 w-8 rounded-lg neo-border flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: cat?.color || '#eee' }}>
-                      {t.type === 'income' ? <TrendingUp className="h-3.5 w-3.5 text-white" /> : <TrendingDown className="h-3.5 w-3.5 text-white" />}
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: cat?.color || '#eee' }}>
+                      {t.type === 'income' ? <TrendingUp className="h-4 w-4 text-white" /> : <TrendingDown className="h-4 w-4 text-white" />}
                     </div>
                     <div className="overflow-hidden">
-                      <p className="font-black text-[10px] truncate">{t.description}</p>
-                      <p className="text-[9px] font-black uppercase opacity-30">{new Date(t.date).toLocaleDateString('id-ID')}</p>
+                      <p className="font-medium text-sm truncate">{t.description}</p>
+                      <p className="text-[11px] text-muted-foreground">{formatShortDate(t.date)}</p>
                     </div>
                   </div>
-                  <p className={cn("font-black text-[10px] shrink-0 italic", t.type === 'income' ? "text-green-600" : "text-black")}>
+                  <p className={cn("font-semibold text-sm shrink-0 tabular-nums", t.type === 'income' ? "text-emerald-600" : "text-foreground")}>
                     {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                   </p>
                 </div>
               );
             })}
+            {recentTransactions.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada transaksi.</p>
+            )}
           </div>
         </div>
       </div>

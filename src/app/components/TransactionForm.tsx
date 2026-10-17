@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Form, FormField } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
 import { Category, Transaction } from '@/app/lib/types';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 const formSchema = z.object({
@@ -65,19 +64,21 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
       .filter(c => c.name.toLowerCase().includes(catSearch.toLowerCase()));
   }, [categories, currentType, catSearch]);
 
+  const isValid = currentCatId > 0 && currentAmount > 0 && currentDesc.length >= 2;
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between border-b-4 border-black bg-white sticky top-0 z-30">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-border bg-white sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl neo-border bg-black text-white flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center">
             <Check className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-black uppercase italic tracking-tighter">
+          <h3 className="text-base font-semibold tracking-tight">
             {initialData ? "Ubah Transaksi" : "Catat Transaksi"}
           </h3>
         </div>
-        <Button variant="ghost" size="icon" onClick={onCancel} className="h-10 w-10 rounded-xl neo-border hover:bg-red-50 hover:text-red-500">
+        <Button variant="ghost" size="icon" onClick={onCancel} className="h-10 w-10 rounded-xl hover:bg-rose-50 hover:text-rose-500">
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -88,11 +89,11 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
             
             {/* Tipe & Nominal */}
             <div className="space-y-4">
-              <div className="flex gap-2 p-1.5 bg-muted/30 neo-border rounded-2xl w-fit mx-auto">
+              <div className="flex gap-1.5 p-1.5 bg-muted rounded-2xl w-fit mx-auto">
                 {(['expense', 'income'] as const).map(type => (
                   <button key={type} type="button" onClick={() => { form.setValue('type', type); form.setValue('categoryId', 0); }} className={cn(
-                      "px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all",
-                      currentType === type ? "bg-black text-white neo-shadow-sm" : "text-black/40 hover:bg-white"
+                      "px-7 py-2.5 rounded-xl text-xs font-semibold transition-all",
+                      currentType === type ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {type === 'expense' ? 'Keluar' : 'Masuk'}
@@ -101,9 +102,9 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
               </div>
 
               <div className="text-center space-y-2">
-                <label className="text-[10px] font-black uppercase opacity-30 tracking-widest">Nominal Transaksi</label>
+                <label className="text-[11px] font-medium text-muted-foreground">Nominal Transaksi</label>
                 <div className="flex items-center justify-center gap-3">
-                  <span className="text-2xl md:text-3xl font-black opacity-20 shrink-0">Rp</span>
+                  <span className="text-2xl md:text-3xl font-semibold text-muted-foreground shrink-0">Rp</span>
                   <input 
                     type="text" 
                     inputMode="numeric" 
@@ -111,8 +112,8 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
                     onChange={handleAmountChange} 
                     placeholder="0"
                     className={cn(
-                      "w-full min-w-0 bg-transparent text-center text-[clamp(2rem,9vw,3.5rem)] font-black tracking-tighter focus:outline-none placeholder:opacity-10 py-2 tabular-nums",
-                      currentType === 'expense' ? "text-black" : "text-green-600"
+                      "w-full min-w-0 bg-transparent text-center text-[clamp(2rem,9vw,3rem)] font-bold tracking-tight focus:outline-none placeholder:text-muted-foreground/30 py-2 tabular-nums",
+                      currentType === 'expense' ? "text-foreground" : "text-emerald-600"
                     )}
                   />
                 </div>
@@ -120,55 +121,55 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
             </div>
 
             {/* Deskripsi */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
-                <label className="text-[10px] font-black uppercase opacity-30 tracking-widest">Catatan / Deskripsi</label>
+                <label className="text-[11px] font-medium text-muted-foreground">Catatan / Deskripsi</label>
               </div>
               <FormField control={form.control} name="description" render={({ field }) => (
                 <Textarea 
                   {...field} 
-                  placeholder="Misal: Jajan Kopi Sore"
-                  className="neo-border rounded-2xl p-4 font-bold min-h-[100px] bg-white resize-none text-base"
+                  placeholder="Misal: Jajan kopi sore"
+                  className="rounded-2xl p-4 font-medium min-h-[90px] bg-white resize-none text-base border-border"
                 />
               )} />
             </div>
 
             {/* Kategori */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <label className="text-[10px] font-black uppercase opacity-30 tracking-widest">Pilih Kategori</label>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1 gap-3">
+                <label className="text-[11px] font-medium text-muted-foreground">Pilih Kategori</label>
                 <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 opacity-30" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <input 
                     value={catSearch} 
                     onChange={(e) => setCatSearch(e.target.value)} 
                     placeholder="Cari..."
-                    className="pl-7 pr-2 py-1.5 bg-muted/50 rounded-lg text-[10px] font-bold focus:outline-none neo-border min-w-0"
+                    className="pl-7 pr-3 py-1.5 bg-muted rounded-lg text-xs font-medium focus:outline-none min-w-0"
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                 {filteredCategories.map(cat => (
                   <button 
                     key={cat.id} 
                     type="button" 
                     onClick={() => form.setValue('categoryId', cat.id)}
                     className={cn(
-                      "p-3 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2.5 transition-all neo-border relative min-w-0",
-                      currentCatId === cat.id ? "bg-black text-white neo-shadow-sm" : "bg-white hover:bg-muted"
+                      "p-3 rounded-2xl text-xs font-medium flex items-center gap-2.5 transition-all border relative min-w-0",
+                      currentCatId === cat.id ? "border-primary bg-primary/5 text-primary" : "border-border bg-white hover:bg-muted"
                     )}
                   >
-                    <div className="w-5 h-5 rounded-full neo-border shrink-0" style={{ backgroundColor: cat.color }} />
+                    <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                     <span className="truncate flex-1 text-left">{cat.name}</span>
                     {currentCatId === cat.id && (
-                      <Check className="h-3 w-3 text-primary shrink-0" />
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0" />
                     )}
                   </button>
                 ))}
               </div>
               {filteredCategories.length === 0 && (
-                <p className="text-[9px] font-bold italic opacity-30 text-center py-4">Kategori tidak ditemukan.</p>
+                <p className="text-xs text-muted-foreground text-center py-4">Kategori tidak ditemukan.</p>
               )}
             </div>
           </form>
@@ -176,17 +177,17 @@ export function TransactionForm({ categories, initialData, onSubmit, onCancel }:
       </div>
 
       {/* Footer Button */}
-      <div className="p-4 md:p-6 border-t-4 border-black bg-white sticky bottom-0 z-30">
+      <div className="p-4 md:p-6 border-t border-border bg-white sticky bottom-0 z-30">
         <Button 
           onClick={form.handleSubmit(onSubmit)}
-          disabled={!currentCatId || currentAmount <= 0 || currentDesc.length < 2}
-          className="w-full h-14 md:h-16 rounded-2xl bg-black text-white hover:bg-primary font-black uppercase text-xs neo-interactive neo-border neo-shadow-sm flex gap-3 transition-all"
+          disabled={!isValid}
+          className="w-full h-14 rounded-2xl bg-primary text-white hover:bg-primary/90 font-semibold text-sm neo-interactive flex gap-2 transition-all"
         >
           {initialData ? "Perbarui Data" : "Simpan Transaksi"}
           <Check className="h-5 w-5" />
         </Button>
-        {(!currentCatId || currentAmount <= 0 || currentDesc.length < 2) && (
-          <p className="text-[9px] font-black uppercase text-center opacity-40 mt-2.5">
+        {!isValid && (
+          <p className="text-[11px] text-center text-muted-foreground mt-2.5">
             Lengkapi nominal, catatan, dan pilih kategori
           </p>
         )}

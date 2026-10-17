@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/mongodb';
 import { toIntId } from '@/lib/id';
+import { query } from '@/lib/supabase-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,14 +8,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     const numericId = toIntId(id);
-    if (numericId == null) {
+    if (numericId == null || numericId <= 0) {
       return NextResponse.json({ error: 'ID tidak valid' }, { status: 400 });
     }
-    const db = await getDb();
-    await db.collection('transactions').deleteOne({ id: numericId });
+    const result = await query('DELETE FROM public.transactions WHERE id = $1', [numericId]);
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Transaksi tidak ditemukan' }, { status: 404 });
+    }
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error('DELETE /api/transactions/[id] Error:', err);
+  } catch (error) {
+    console.error('DELETE /api/transactions/[id] Error:', error);
     return NextResponse.json({ error: 'Gagal menghapus transaksi' }, { status: 500 });
   }
 }

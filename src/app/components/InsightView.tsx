@@ -30,7 +30,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatCurrency as currency, formatCompactCurrency as compact } from '@/lib/format';
+import { formatCurrency as currency, formatCompactCurrency as compact, dateKeyWIB, nowWIBParts } from '@/lib/format';
 
 interface InsightViewProps {
   transactions: Transaction[];
@@ -48,13 +48,16 @@ interface Tip {
   message: string;
 }
 
-const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+const monthKey = (v: Date | string | number) => {
+  const key = dateKeyWIB(v);
+  return `${key.slice(0, 4)}-${Number(key.slice(5, 7)) - 1}`;
+};
 
 const toneStyles: Record<Tone, { wrap: string; icon: string }> = {
-  good: { wrap: 'bg-emerald-50 border-emerald-100', icon: 'text-emerald-600 bg-emerald-100' },
-  warn: { wrap: 'bg-amber-50 border-amber-100', icon: 'text-amber-600 bg-amber-100' },
-  bad: { wrap: 'bg-rose-50 border-rose-100', icon: 'text-rose-600 bg-rose-100' },
-  info: { wrap: 'bg-sky-50 border-sky-100', icon: 'text-sky-600 bg-sky-100' },
+  good: { wrap: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900', icon: 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40' },
+  warn: { wrap: 'bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900', icon: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40' },
+  bad: { wrap: 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-900', icon: 'text-rose-600 dark:text-rose-400 bg-rose-100 dark:bg-rose-900/40' },
+  info: { wrap: 'bg-sky-50 dark:bg-sky-950/40 border-sky-100 dark:border-sky-900', icon: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40' },
 };
 
 const toneIcon: Record<Tone, typeof Info> = {
@@ -70,17 +73,12 @@ export function InsightView({
   initialBalance,
   emergencyFundTarget,
 }: InsightViewProps) {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const { year: currentYear, month: currentMonth, day: dayOfMonth } = nowWIBParts();
+  const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
 
   const stats = useMemo(() => {
-    const isCurrentMonth = (t: Transaction) => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    };
+    const currKey = `${currentYear}-${currentMonth}`;
+    const isCurrentMonth = (t: Transaction) => monthKey(t.date) === currKey;
 
     const incomeAll = transactions
       .filter((t) => t.type === 'income')
@@ -127,9 +125,11 @@ export function InsightView({
 
   const trendData = useMemo(() => {
     return Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(currentYear, currentMonth - (5 - i), 1);
-      const key = monthKey(d);
-      const inMonth = transactions.filter((t) => monthKey(new Date(t.date)) === key);
+      const total = currentYear * 12 + currentMonth - (5 - i);
+      const y = Math.floor(total / 12);
+      const m = ((total % 12) + 12) % 12;
+      const key = `${y}-${m}`;
+      const inMonth = transactions.filter((t) => monthKey(t.date) === key);
       const income = inMonth
         .filter((t) => t.type === 'income')
         .reduce((s, t) => s + t.amount, 0);
@@ -137,7 +137,7 @@ export function InsightView({
         .filter((t) => t.type === 'expense')
         .reduce((s, t) => s + t.amount, 0);
       return {
-        name: d.toLocaleDateString('id-ID', { month: 'short' }),
+        name: new Intl.DateTimeFormat('id-ID', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m, 1))),
         Pemasukan: income,
         Pengeluaran: expense,
         Selisih: income - expense,
@@ -146,8 +146,8 @@ export function InsightView({
   }, [transactions, currentMonth, currentYear]);
 
   const categoryAnalysis = useMemo(() => {
-    const prevMonthDate = new Date(currentYear, currentMonth - 1, 1);
-    const prevKey = monthKey(prevMonthDate);
+    const prevTotal = currentYear * 12 + currentMonth - 1;
+    const prevKey = `${Math.floor(prevTotal / 12)}-${((prevTotal % 12) + 12) % 12}`;
     const currKey = `${currentYear}-${currentMonth}`;
 
     const expenseCats = categories.filter((c) => c.type === 'expense');
@@ -155,10 +155,10 @@ export function InsightView({
     const rows = expenseCats
       .map((cat) => {
         const spentCurrent = transactions
-          .filter((t) => t.categoryId === cat.id && monthKey(new Date(t.date)) === currKey)
+          .filter((t) => t.categoryId === cat.id && monthKey(t.date) === currKey)
           .reduce((s, t) => s + t.amount, 0);
         const spentPrev = transactions
-          .filter((t) => t.categoryId === cat.id && monthKey(new Date(t.date)) === prevKey)
+          .filter((t) => t.categoryId === cat.id && monthKey(t.date) === prevKey)
           .reduce((s, t) => s + t.amount, 0);
         const change = spentPrev > 0 ? ((spentCurrent - spentPrev) / spentPrev) * 100 : null;
         const budget = cat.budget || 0;
@@ -292,7 +292,7 @@ export function InsightView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 soft-card flex flex-col justify-between gap-6">
           <div className="flex items-center justify-between">
-            <div className="h-10 w-10 rounded-xl bg-white border border-border flex items-center justify-center">
+            <div className="h-10 w-10 rounded-xl bg-card border border-border flex items-center justify-center">
               <Gauge className="h-5 w-5 text-primary" />
             </div>
             <span
@@ -335,19 +335,19 @@ export function InsightView({
             icon={TrendingUp}
             label="Masuk (bulan)"
             value={currency(stats.monthIncome)}
-            accent="text-emerald-600"
+            accent="text-emerald-600 dark:text-emerald-400"
           />
           <StatTile
             icon={TrendingDown}
             label="Keluar (bulan)"
             value={currency(stats.monthExpense)}
-            accent="text-rose-600"
+            accent="text-rose-600 dark:text-rose-400"
           />
           <StatTile
             icon={PiggyBank}
             label="Rasio Menabung"
             value={`${Math.round(stats.savingsRatio * 100)}%`}
-            accent={stats.savingsRatio >= 0.2 ? 'text-emerald-600' : 'text-amber-600'}
+            accent={stats.savingsRatio >= 0.2 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}
           />
         </div>
       </div>
@@ -402,7 +402,7 @@ export function InsightView({
               Rata-rata harian <b className="text-foreground">{currency(stats.dailyAverage)}</b>
             </span>
             <span className="px-3 py-1 rounded-full bg-muted text-muted-foreground">
-              Proyeksi keluar <b className="text-rose-600">{currency(stats.projectedExpense)}</b>
+              Proyeksi keluar <b className="text-rose-600 dark:text-rose-400">{currency(stats.projectedExpense)}</b>
             </span>
           </div>
         </div>
@@ -471,7 +471,7 @@ export function InsightView({
                         <span
                           className={cn(
                             'text-[11px] font-semibold flex items-center gap-0.5 shrink-0',
-                            row.change > 0 ? 'text-rose-500' : 'text-emerald-500'
+                            row.change > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500'
                           )}
                         >
                           {row.change > 0 ? (
@@ -489,9 +489,9 @@ export function InsightView({
                           className={cn(
                             'px-2 py-0.5 rounded-full font-medium',
                             row.usage >= 100
-                              ? 'bg-rose-50 text-rose-600'
+                              ? 'bg-rose-50 text-rose-600 dark:text-rose-400'
                               : row.usage >= 80
-                                ? 'bg-amber-50 text-amber-600'
+                                ? 'bg-amber-50 text-amber-600 dark:text-amber-400'
                                 : 'bg-muted text-muted-foreground'
                           )}
                         >

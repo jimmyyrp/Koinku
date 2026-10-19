@@ -1,17 +1,20 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from 'pg';
 import { getSecurePostgresConfig } from './postgres-config';
+import { loadEnv } from '../../scripts/load-env';
 
 declare global {
   // eslint-disable-next-line no-var
   var _koinkuPostgresPool: Pool | undefined;
 }
 
+loadEnv();
+
 export function getPool(): Pool {
   if (global._koinkuPostgresPool) return global._koinkuPostgresPool;
 
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL belum dikonfigurasi di .env.local');
+    throw new Error('DATABASE_URL belum dikonfigurasi di .env');
   }
 
   const configuredMax = Number(process.env.DATABASE_POOL_MAX);

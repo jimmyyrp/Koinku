@@ -18,6 +18,7 @@ const formSchema = z.object({
   type: z.enum(['income', 'expense']),
   categoryId: z.coerce.number().refine(v => v > 0, "Pilih kategori"),
   paidById: z.coerce.number().optional(),
+  forPersonId: z.coerce.number().optional(),
 });
 
 interface TransactionFormProps {
@@ -45,12 +46,14 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
       type: initialData.type,
       categoryId: initialData.categoryId,
       paidById: initialData.paidById || undefined,
+      forPersonId: initialData.forPersonId || undefined,
     } : {
       description: "",
       amount: 0,
       type: "expense",
       categoryId: 0,
       paidById: selfPerson?.id,
+      forPersonId: undefined,
     },
   });
 
@@ -59,9 +62,12 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
   const currentDesc = form.watch('description');
   const currentCatId = form.watch('categoryId');
   const currentPaidById = form.watch('paidById');
+  const currentForPersonId = form.watch('forPersonId');
 
   const selectedPerson = people.find(p => p.id === currentPaidById) || null;
+  const selectedForPerson = people.find(p => p.id === currentForPersonId) || null;
   const isUtang = currentType === 'expense' && selectedPerson != null && !selectedPerson.isSelf;
+  const isPiutang = currentType === 'expense' && selectedForPerson != null && !selectedForPerson.isSelf;
 
   const [displayAmount, setDisplayAmount] = useState(initialData?.amount.toLocaleString('id-ID') || '');
 
@@ -94,9 +100,9 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
   const isValid = currentCatId > 0 && currentAmount > 0 && currentDesc.length >= 2;
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-card">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between border-b border-border bg-white sticky top-0 z-30">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-border bg-card sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary text-white flex items-center justify-center">
             <Check className="h-5 w-5" />
@@ -105,7 +111,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
             {initialData ? "Ubah Transaksi" : "Catat Transaksi"}
           </h3>
         </div>
-        <Button variant="ghost" size="icon" onClick={onCancel} className="h-10 w-10 rounded-xl hover:bg-rose-50 hover:text-rose-500">
+        <Button variant="ghost" size="icon" onClick={onCancel} className="h-10 w-10 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-500 dark:text-rose-400">
           <X className="h-5 w-5" />
         </Button>
       </div>
@@ -120,7 +126,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                 {(['expense', 'income'] as const).map(type => (
                   <button key={type} type="button" onClick={() => { form.setValue('type', type); form.setValue('categoryId', 0); }} className={cn(
                       "px-7 py-2.5 rounded-xl text-xs font-semibold transition-all",
-                      currentType === type ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      currentType === type ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {type === 'expense' ? 'Keluar' : 'Masuk'}
@@ -140,7 +146,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                     placeholder="0"
                     className={cn(
                       "w-full min-w-0 bg-transparent text-center text-[clamp(2rem,9vw,3rem)] font-bold tracking-tight focus:outline-none placeholder:text-muted-foreground/30 py-2 tabular-nums",
-                      currentType === 'expense' ? "text-foreground" : "text-emerald-600"
+                      currentType === 'expense' ? "text-foreground" : "text-emerald-600 dark:text-emerald-400"
                     )}
                   />
                 </div>
@@ -156,7 +162,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                 <Textarea 
                   {...field} 
                   placeholder="Misal: Jajan kopi sore"
-                  className="rounded-2xl p-4 font-medium min-h-[90px] bg-white resize-none text-base border-border"
+                  className="rounded-2xl p-4 font-medium min-h-[90px] bg-card resize-none text-base border-border"
                 />
               )} />
             </div>
@@ -184,7 +190,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                     onClick={() => form.setValue('categoryId', cat.id)}
                     className={cn(
                       "p-3 rounded-2xl text-xs font-medium flex items-center gap-2.5 transition-all border relative min-w-0",
-                      currentCatId === cat.id ? "border-primary bg-primary/5 text-primary" : "border-border bg-white hover:bg-muted"
+                      currentCatId === cat.id ? "border-primary bg-primary/5 text-primary" : "border-border bg-card hover:bg-muted"
                     )}
                   >
                     <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -215,7 +221,7 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                       "px-4 py-2.5 rounded-2xl text-xs font-medium flex items-center gap-2 transition-all border min-w-0",
                       currentPaidById === person.id
                         ? "border-primary bg-primary/5 text-primary"
-                        : "border-border bg-white hover:bg-muted text-foreground"
+                        : "border-border bg-card hover:bg-muted text-foreground"
                     )}
                   >
                     <User className="h-3.5 w-3.5 shrink-0" />
@@ -257,17 +263,50 @@ export function TransactionForm({ categories, people, initialData, onSubmit, onC
                 )}
               </div>
               {isUtang && selectedPerson && (
-                <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 font-medium">
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 border border-amber-100 dark:border-amber-900 rounded-xl px-3 py-2 font-medium">
                   Dicatat sebagai utang ke {selectedPerson.name}
                 </p>
               )}
             </div>
+
+            {/* Dipakai untuk (pengeluaran atas nama orang lain → otomatis jadi piutang) */}
+            {currentType === 'expense' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">Dipakai untuk (opsional)</label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {people.map(person => (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={() => form.setValue('forPersonId', person.isSelf ? undefined : person.id)}
+                      className={cn(
+                        "px-4 py-2.5 rounded-2xl text-xs font-medium flex items-center gap-2 transition-all border min-w-0",
+                        (person.isSelf && currentForPersonId == null) || currentForPersonId === person.id
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border bg-card hover:bg-muted text-foreground"
+                      )}
+                    >
+                      <User className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate max-w-[140px]">{person.isSelf ? 'Saya sendiri' : person.name}</span>
+                      {(person.isSelf && currentForPersonId == null) || currentForPersonId === person.id ? <Check className="h-3.5 w-3.5" /> : null}
+                    </button>
+                  ))}
+                </div>
+                {isPiutang && selectedForPerson && currentAmount > 0 && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 border border-amber-100 dark:border-amber-900 rounded-xl px-3 py-2 font-medium">
+                    {selectedForPerson.name} otomatis berhutang ke kamu {currentAmount.toLocaleString('id-ID')}
+                  </p>
+                )}
+              </div>
+            )}
           </form>
         </Form>
       </div>
 
       {/* Footer Button */}
-      <div className="p-4 md:p-6 border-t border-border bg-white sticky bottom-0 z-30">
+      <div className="p-4 md:p-6 border-t border-border bg-card sticky bottom-0 z-30">
         <Button 
           onClick={form.handleSubmit(onSubmit)}
           disabled={!isValid}

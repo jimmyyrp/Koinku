@@ -118,11 +118,11 @@ export function ProfileView({
           {/* Health Score Card */}
           <div className={cn(
             "soft-card border flex items-center justify-between gap-3 p-5 md:p-6",
-            stats.healthScore > 70 ? "bg-emerald-50 border-emerald-100" : stats.healthScore > 40 ? "bg-sky-50 border-sky-100" : "bg-amber-50 border-amber-100"
+            stats.healthScore > 70 ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-900" : stats.healthScore > 40 ? "bg-sky-50 dark:bg-sky-950/40 border-sky-100 dark:border-sky-900" : "bg-amber-50 dark:bg-amber-950/40 border-amber-100 dark:border-amber-900"
           )}>
             <div className="flex items-center gap-4 min-w-0">
-              <div className="h-14 w-14 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-sm">
-                <Zap className={cn("h-6 w-6", stats.healthScore > 40 ? "text-primary" : "text-amber-500")} />
+              <div className="h-14 w-14 rounded-2xl bg-card flex items-center justify-center shrink-0 shadow-sm">
+                <Zap className={cn("h-6 w-6", stats.healthScore > 40 ? "text-primary" : "text-amber-500 dark:text-amber-400")} />
               </div>
               <div className="min-w-0">
                  <h4 className="text-xl md:text-2xl font-bold tracking-tight tabular-nums">{Math.round(stats.healthScore)} / 100</h4>
@@ -131,7 +131,7 @@ export function ProfileView({
             </div>
             <div className="text-right hidden sm:block shrink-0">
               <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Performa</p>
-              <p className={cn("text-sm font-semibold", stats.healthScore > 50 ? "text-primary" : "text-amber-600")}>
+              <p className={cn("text-sm font-semibold", stats.healthScore > 50 ? "text-primary" : "text-amber-600 dark:text-amber-400")}>
                 {stats.healthScore > 70 ? 'Optimal' : stats.healthScore > 40 ? 'Stabil' : 'Waspada'}
               </p>
             </div>
@@ -162,7 +162,7 @@ export function ProfileView({
                   onClick={() => setCatFilter(type)}
                   className={cn(
                     "flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all",
-                    catFilter === type ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    catFilter === type ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {type === 'expense' ? 'Pengeluaran' : 'Pemasukan'}
@@ -197,7 +197,7 @@ export function ProfileView({
 
               <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto pr-1 no-scrollbar">
                 {filteredCategories.map((cat) => (
-                  <div key={cat.id} className="flex flex-col gap-3 p-4 bg-white border border-border rounded-2xl">
+                  <div key={cat.id} className="flex flex-col gap-3 p-4 bg-card border border-border rounded-2xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 overflow-hidden">
                         <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
@@ -205,7 +205,7 @@ export function ProfileView({
                       </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                          <button className="p-2 text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:bg-rose-950/40 rounded-xl transition-all">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </AlertDialogTrigger>
@@ -239,8 +239,8 @@ export function ProfileView({
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-medium text-muted-foreground">Terpakai</p>
-                          <p className={cn("text-xs font-semibold tabular-nums", (categoryUsage[cat.id] || 0) > (cat.budget || 0) && cat.budget ? "text-rose-500" : "text-primary")}>
-                            {cat.budget ? `${Math.min(Math.round(((categoryUsage[cat.id] || 0) / cat.budget) * 100), 999)}%` : '—'}
+                          <p className={cn("text-xs font-semibold tabular-nums", (categoryUsage[cat.id] || 0) > (cat.budget || 0) && cat.budget ? "text-rose-500 dark:text-rose-400" : "text-primary")}>
+                            {cat.budget ? `${Math.min(Math.round(((categoryUsage[cat.id] || 0) / cat.budget) * 100), 999)}%` : 'â€”'}
                           </p>
                         </div>
                       </div>
@@ -324,14 +324,14 @@ export function ProfileView({
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" className="w-full h-12 rounded-xl font-medium text-sm flex gap-2 border-rose-200 text-rose-600 hover:bg-rose-50">
+                <Button variant="outline" className="w-full h-12 rounded-xl font-medium text-sm flex gap-2 border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50">
                   <Trash2 className="h-4 w-4" /> Bersihkan Seluruh Data
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent className="rounded-3xl">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="font-semibold text-lg flex items-center gap-2">
-                    <AlertTriangle className="text-rose-500 h-5 w-5" /> Hapus Semua Data?
+                    <AlertTriangle className="text-rose-500 dark:text-rose-400 h-5 w-5" /> Hapus Semua Data?
                   </AlertDialogTitle>
                   <AlertDialogDescription className="text-sm">Ini adalah aksi permanen. Seluruh riwayat Anda akan hilang selamanya.</AlertDialogDescription>
                 </AlertDialogHeader>

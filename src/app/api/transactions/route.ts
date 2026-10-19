@@ -15,6 +15,8 @@ interface TransactionInput {
   categoryId?: unknown;
   paid_by_id?: unknown;
   paidById?: unknown;
+  for_person_id?: unknown;
+  forPersonId?: unknown;
 }
 
 export async function GET(req: NextRequest) {
@@ -29,11 +31,16 @@ export async function GET(req: NextRequest) {
       paid_by_id: string | null;
       paid_by_name: string | null;
       paid_by_is_self: boolean | null;
+      for_person_id: string | null;
+      for_person_name: string | null;
+      for_person_is_self: boolean | null;
     }>(
       `SELECT t.id, t.description, t.amount, t.date, t.type, t.category_id,
-              t.paid_by_id, p.name AS paid_by_name, p.is_self AS paid_by_is_self
+              t.paid_by_id, p.name AS paid_by_name, p.is_self AS paid_by_is_self,
+              t.for_person_id, fp.name AS for_person_name, fp.is_self AS for_person_is_self
        FROM public.transactions t
        LEFT JOIN public.people p ON p.id = t.paid_by_id
+       LEFT JOIN public.people fp ON fp.id = t.for_person_id
        ORDER BY t.date DESC, t.id DESC`
     );
     const transactions = rows.map((transaction) => ({
@@ -46,6 +53,9 @@ export async function GET(req: NextRequest) {
       paidById: toIntId(transaction.paid_by_id),
       paidByName: transaction.paid_by_name,
       paidByIsSelf: transaction.paid_by_is_self,
+      forPersonId: toIntId(transaction.for_person_id),
+      forPersonName: transaction.for_person_name,
+      forPersonIsSelf: transaction.for_person_is_self,
     }));
     return NextResponse.json({ transactions });
   } catch (error) {
@@ -65,6 +75,7 @@ export async function POST(req: NextRequest) {
     const rawDate = body.date == null ? new Date() : new Date(String(body.date));
     const categoryId = normalizeCategoryId(body.category_id ?? body.categoryId);
     const paidById = toIntId(body.paid_by_id ?? body.paidById);
+    const forPersonId = toIntId(body.for_person_id ?? body.forPersonId);
 
     if (
       !description ||
@@ -73,34 +84,93 @@ export async function POST(req: NextRequest) {
       (type !== 'income' && type !== 'expense') ||
       Number.isNaN(rawDate.getTime()) ||
       (categoryId != null && categoryId <= 0) ||
-      (paidById != null && paidById <= 0)
+      (paidById != null && paidById <= 0) ||
+      (forPersonId != null && forPersonId <= 0)
     ) {
       return NextResponse.json({ error: 'Data transaksi tidak valid' }, { status: 400 });
     }
 
     const result = await withTransaction(async (client) => {
+      let txId: number;
+      let edit = false;
+
       if (requestedId != null && requestedId > 0) {
         const updated = await client.query<{ id: string }>(
           `UPDATE public.transactions
            SET description = $1, amount = $2, date = $3, type = $4,
-               category_id = $5, paid_by_id = $6, updated_at = now()
-           WHERE id = $7
+               category_id = $5, paid_by_id = $6, for_person_id = $7, updated_at = now()
+           WHERE id = $8
            RETURNING id`,
-          [description, amount, rawDate.toISOString(), type, categoryId, paidById, requestedId]
+          [description, amount, rawDate.toISOString(), type, categoryId, paidById, forPersonId, requestedId]
         );
         if (updated.rowCount) {
-          return { id: Number(updated.rows[0].id), edit: true };
+          txId = Number(updated.rows[0].id);
+          edit = true;
+        } else {
+          const inserted = await client.query<{ id: string }>(
+            `INSERT INTO public.transactions
+               (description, amount, date, type, category_id, paid_by_id, for_person_id, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+             RETURNING id`,
+            [description, amount, rawDate.toISOString(), type, categoryId, paidById, forPersonId]
+          );
+          txId = Number(inserted.rows[0].id);
         }
+      } else {
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO public.transactions
+             (description, amount, date, type, category_id, paid_by_id, for_person_id, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+           RETURNING id`,
+          [description, amount, rawDate.toISOString(), type, categoryId, paidById, forPersonId]
+        );
+        txId = Number(inserted.rows[0].id);
       }
 
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO public.transactions
-           (description, amount, date, type, category_id, paid_by_id, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, now())
-         RETURNING id`,
-        [description, amount, rawDate.toISOString(), type, categoryId, paidById]
+      // Utang otomatis: transaksi pengeluaran yang dibayar sendiri untuk orang lain.
+      const peopleRes = await client.query<{ id: string; name: string; is_self: boolean }>(
+        `SELECT id, name, is_self FROM public.people WHERE id = ANY($1::bigint[])`,
+        [[paidById, forPersonId].filter((v): v is number => v != null)]
       );
-      return { id: Number(inserted.rows[0].id), edit: false };
+      const peopleMap = new Map(peopleRes.rows.map((p) => [Number(p.id), p]));
+      const payer = paidById != null ? peopleMap.get(paidById) : undefined;
+      const forPerson = forPersonId != null ? peopleMap.get(forPersonId) : undefined;
+      const payerIsSelf = payer?.is_self ?? true;
+
+      const shouldTrackDebt =
+        type === 'expense' && amount > 0 && payerIsSelf && forPerson != null && !forPerson.is_self;
+      const payerOwesMe =
+        type === 'expense' && amount > 0 && payer != null && !payer.is_self &&
+        (forPerson == null || forPerson.is_self);
+
+      if (shouldTrackDebt) {
+        await client.query(
+          `INSERT INTO public.debts
+             (person_name, amount, direction, note, debt_date, source_transaction_id)
+           VALUES ($1, $2, 'lend', $3, $4, $5)
+           ON CONFLICT (source_transaction_id) WHERE source_transaction_id IS NOT NULL
+           DO UPDATE SET person_name = EXCLUDED.person_name, amount = EXCLUDED.amount,
+                         direction = 'lend', note = EXCLUDED.note, debt_date = EXCLUDED.debt_date`,
+          [forPerson.name, amount, description, rawDate.toISOString().slice(0, 10), txId]
+        );
+      } else if (payerOwesMe && payer) {
+        await client.query(
+          `INSERT INTO public.debts
+             (person_name, amount, direction, note, debt_date, source_transaction_id)
+           VALUES ($1, $2, 'borrow', $3, $4, $5)
+           ON CONFLICT (source_transaction_id) WHERE source_transaction_id IS NOT NULL
+           DO UPDATE SET person_name = EXCLUDED.person_name, amount = EXCLUDED.amount,
+                         direction = 'borrow', note = EXCLUDED.note, debt_date = EXCLUDED.debt_date`,
+          [payer.name, amount, description, rawDate.toISOString().slice(0, 10), txId]
+        );
+      } else {
+        await client.query(
+          `DELETE FROM public.debts WHERE source_transaction_id = $1`,
+          [txId]
+        );
+      }
+
+      return { id: txId, edit };
     });
 
     return NextResponse.json({ ok: true, ...result });

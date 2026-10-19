@@ -12,7 +12,7 @@ Aplikasi manajemen keuangan pribadi dengan desain modern-soft, Next.js 15, dan S
 
 ## Menyiapkan aplikasi
 
-1. Salin `.env.example` menjadi `.env.local`.
+1. Salin `.env.example` menjadi `.env`.
 2. Isi nilai Supabase project dan `DATABASE_URL` dari Supabase Dashboard → Project Settings → Database.
    Gunakan **Connection Pooler** (host `db.<ref>.supabase.co` sekarang hanya IPv6 sehingga gagal di banyak jaringan):
    `postgresql://postgres.<project-ref>:PASSWORD@aws-0-<region>.pooler.supabase.com:5432/postgres`.

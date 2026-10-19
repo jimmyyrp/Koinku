@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatTime } from '@/lib/format';
+import { formatCurrency, formatTime, formatDate, dateKeyWIB } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { 
   ResponsiveContainer, 
@@ -75,17 +75,16 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
     if (!mounted) return [];
     
     const groups: { [key: string]: Transaction[] } = {};
-    const today = new Date().toDateString();
-    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    const today = dateKeyWIB(new Date());
+    const yesterday = dateKeyWIB(new Date(Date.now() - 86400000));
 
     filtered.forEach(t => {
-      const date = new Date(t.date);
-      const dateStr = date.toDateString();
+      const dateStr = dateKeyWIB(t.date);
       let label = "";
 
       if (dateStr === today) label = "Hari Ini";
       else if (dateStr === yesterday) label = "Kemarin";
-      else label = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      else label = formatDate(t.date);
 
       if (!groups[label]) groups[label] = [];
       groups[label].push(t);
@@ -150,12 +149,12 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Cari transaksi..." 
-                className="pl-11 h-12 md:h-14 rounded-2xl bg-white font-medium border-border"
+                className="pl-11 h-12 md:h-14 rounded-2xl bg-card font-medium border-border"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-1 p-1 bg-white rounded-2xl border border-border">
+            <div className="flex gap-1 p-1 bg-card rounded-2xl border border-border">
               {(['all', 'expense', 'income'] as const).map(tab => (
                 <button
                   key={tab}
@@ -174,7 +173,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
           <div className="flex items-center gap-3">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-[200px] rounded-xl bg-white font-medium text-sm border-border">
+              <SelectTrigger className="w-full md:w-[200px] rounded-xl bg-card font-medium text-sm border-border">
                 <SelectValue placeholder="Pilih Kategori" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -216,26 +215,27 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                           <div className="min-w-0 flex-1">
                             <h3 className="text-sm md:text-base font-semibold truncate tracking-tight leading-tight">{t.description}</h3>
                             <p className="text-[11px] text-muted-foreground truncate">
-                              {cat?.name || 'Tanpa Kategori'} • {formatTime(t.date)}
+                              {cat?.name || 'Tanpa Kategori'} • {formatDate(t.date)}, {formatTime(t.date)}
+                              {t.forPersonName && !t.forPersonIsSelf ? ` • Untuk ${t.forPersonName}` : ''}
                               {t.paidByName && !t.paidByIsSelf ? ` • Dibayar ${t.paidByName}` : ''}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between md:justify-end gap-3 md:gap-4 shrink-0 md:ml-4">
-                          {t.type === 'expense' && t.paidByName && !t.paidByIsSelf && (
-                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-1 rounded-full whitespace-nowrap">
-                              Utang
+                          {t.type === 'expense' && ((t.paidByName && !t.paidByIsSelf) || (t.forPersonName && !t.forPersonIsSelf)) && (
+                            <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 border border-amber-100 dark:border-amber-900 px-2 py-1 rounded-full whitespace-nowrap">
+                              {t.forPersonName && !t.forPersonIsSelf ? `Piutang ${t.forPersonName}` : 'Utang'}
                             </span>
                           )}
-                          <p className={cn("text-base md:text-lg font-semibold tabular-nums whitespace-nowrap", t.type === 'income' ? "text-emerald-600" : "text-foreground")}>
+                          <p className={cn("text-base md:text-lg font-semibold tabular-nums whitespace-nowrap", t.type === 'income' ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
                             {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                           </p>
                           <div className="flex gap-1.5 md:gap-2">
                             <button
                               onClick={() => onEdit(t)}
                               aria-label={`Ubah transaksi ${t.description}`}
-                              className="p-2 rounded-xl bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors"
+                              className="p-2 rounded-xl bg-sky-50 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/40 dark:bg-sky-900/40 transition-colors"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
@@ -243,7 +243,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                               <AlertDialogTrigger asChild>
                                 <button
                                   aria-label={`Hapus transaksi ${t.description}`}
-                                  className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                                  className="p-2 rounded-xl bg-rose-50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 dark:bg-rose-900/40 transition-colors"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
@@ -268,7 +268,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               </div>
             ))
           ) : (
-            <div className="bg-white p-12 text-center border border-dashed border-border rounded-3xl text-muted-foreground">
+            <div className="bg-card p-12 text-center border border-dashed border-border rounded-3xl text-muted-foreground">
               Belum ada riwayat ditemukan.
             </div>
           )}
@@ -288,7 +288,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
       <div className="lg:col-span-4 space-y-6">
         {utangSummary.length > 0 && (
           <div className="soft-card lg:sticky lg:top-6">
-            <div className="flex items-center gap-2 mb-4 text-amber-600">
+            <div className="flex items-center gap-2 mb-4 text-amber-600 dark:text-amber-400">
               <AlertCircle className="h-4 w-4" />
               <h4 className="text-sm font-semibold">Utang Belum Dibayar</h4>
             </div>
@@ -296,15 +296,15 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               {utangSummary.map((u) => (
                 <div key={u.personId} className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-                      <Users className="h-3.5 w-3.5 text-amber-600" />
+                    <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-100 dark:border-amber-900 flex items-center justify-center shrink-0">
+                      <Users className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold truncate">{u.name}</p>
                       <p className="text-[10px] text-muted-foreground">{u.count} transaksi</p>
                     </div>
                   </div>
-                  <span className="text-sm font-semibold tabular-nums text-amber-600 whitespace-nowrap">
+                  <span className="text-sm font-semibold tabular-nums text-amber-600 dark:text-amber-400 whitespace-nowrap">
                     {formatCurrency(u.total)}
                   </span>
                 </div>
@@ -312,7 +312,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
               <div className="h-px bg-border" />
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">Total</span>
-                <span className="text-sm font-bold tabular-nums text-amber-600">{formatCurrency(totalUtang)}</span>
+                <span className="text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(totalUtang)}</span>
               </div>
             </div>
           </div>
@@ -335,7 +335,7 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                     <RechartsTooltip content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="bg-white border border-border p-3 rounded-xl text-xs shadow-lg">
+                          <div className="bg-card border border-border p-3 rounded-xl text-xs shadow-lg">
                             <p className="text-muted-foreground mb-0.5">{payload[0].name}</p>
                             <p className="text-sm font-semibold">{formatCurrency(payload[0].value as number)}</p>
                           </div>

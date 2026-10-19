@@ -6,6 +6,8 @@ const currencyFormatter = new Intl.NumberFormat('id-ID', {
 
 const numberFormatter = new Intl.NumberFormat('id-ID');
 
+export const WIB_TIMEZONE = 'Asia/Jakarta';
+
 export function formatCurrency(value: number): string {
   return currencyFormatter.format(Number.isFinite(value) ? value : 0);
 }
@@ -24,6 +26,7 @@ export function formatCompactCurrency(value: number): string {
 
 export function formatDate(value: string | number | Date): string {
   return new Date(value).toLocaleDateString('id-ID', {
+    timeZone: WIB_TIMEZONE,
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -31,12 +34,34 @@ export function formatDate(value: string | number | Date): string {
 }
 
 export function formatShortDate(value: string | number | Date): string {
-  return new Date(value).toLocaleDateString('id-ID');
+  return new Date(value).toLocaleDateString('id-ID', { timeZone: WIB_TIMEZONE });
 }
 
 export function formatTime(value: string | number | Date): string {
-  return new Date(value).toLocaleTimeString('id-ID', {
+  const time = new Date(value).toLocaleTimeString('id-ID', {
+    timeZone: WIB_TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
   });
+  return `${time} WIB`;
+}
+
+export function dateKeyWIB(value: string | number | Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: WIB_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+export function nowWIBParts(): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: WIB_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  return { year: get('year'), month: get('month') - 1, day: get('day') };
 }

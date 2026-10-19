@@ -2,6 +2,7 @@ import type {Metadata, Viewport} from 'next';
 import {Inter} from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from '@/components/theme-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,7 +28,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#10b981',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#10b981' },
+    { media: '(prefers-color-scheme: dark)', color: '#020617' },
+  ],
 };
 
 export default function RootLayout({
@@ -36,14 +40,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={inter.variable}>
+    <html lang="id" className={inter.variable} suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className="font-body antialiased bg-background">
-        {children}
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

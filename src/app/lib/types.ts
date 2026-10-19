@@ -24,6 +24,20 @@ export interface Transaction {
   paidById?: number | null;
   paidByName?: string | null;
   paidByIsSelf?: boolean | null;
+  forPersonId?: number | null;
+  forPersonName?: string | null;
+  forPersonIsSelf?: boolean | null;
+}
+
+export type DebtDirection = 'lend' | 'repay_in' | 'borrow' | 'repay_out';
+
+export interface Debt {
+  id: number;
+  personName: string;
+  amount: number;
+  direction: DebtDirection;
+  note: string;
+  debtDate: string;
 }
 
 export const INITIAL_CATEGORIES: Category[] = [

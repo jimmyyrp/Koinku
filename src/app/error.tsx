@@ -19,7 +19,7 @@ export default function Error({
     <div className="min-h-[100dvh] w-full bg-background flex items-center justify-center p-6">
       <div className="soft-card max-w-md w-full text-center space-y-5">
         <div className="h-14 w-14 mx-auto rounded-2xl bg-rose-50 flex items-center justify-center">
-          <AlertTriangle className="h-6 w-6 text-rose-500" />
+          <AlertTriangle className="h-6 w-6 text-rose-500 dark:text-rose-400" />
         </div>
         <div className="space-y-1.5">
           <h2 className="text-lg font-bold tracking-tight">Terjadi kesalahan</h2>

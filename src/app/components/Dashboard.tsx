@@ -23,7 +23,7 @@ import {
   Tooltip as RechartsTooltip
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatShortDate } from '@/lib/format';
+import { formatCurrency, formatShortDate, formatTime, dateKeyWIB, nowWIBParts } from '@/lib/format';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -50,21 +50,19 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
   const currentBalance = initialBalance + incomeTotalAllTime - expenseTotalAllTime;
 
   const monthlyTotals = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const { month: currentMonth, year: currentYear } = nowWIBParts();
 
     const monthlyIncome = transactions
       .filter(t => {
-        const d = new Date(t.date);
-        return t.type === 'income' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        const key = dateKeyWIB(t.date);
+        return t.type === 'income' && key.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`);
       })
       .reduce((sum, t) => sum + t.amount, 0);
 
     const monthlyExpense = transactions
       .filter(t => {
-        const d = new Date(t.date);
-        return t.type === 'expense' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        const key = dateKeyWIB(t.date);
+        return t.type === 'expense' && key.startsWith(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`);
       })
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -72,15 +70,14 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
   }, [transactions]);
 
   const budgetAnalysis = useMemo(() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const { month: currentMonth, year: currentYear } = nowWIBParts();
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
     const expenseCategories = categories.filter(c => c.type === 'expense' && c.budget);
     
     return expenseCategories.map(cat => {
       const spent = transactions
-        .filter(t => t.categoryId === cat.id && new Date(t.date).getMonth() === currentMonth && new Date(t.date).getFullYear() === currentYear)
+        .filter(t => t.categoryId === cat.id && dateKeyWIB(t.date).startsWith(monthPrefix))
         .reduce((sum, t) => sum + t.amount, 0);
       
       const budget = cat.budget || 0;
@@ -99,21 +96,19 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
       ? (monthlyTotals.monthlyIncome - monthlyTotals.monthlyExpense) / monthlyTotals.monthlyIncome 
       : 0;
     
-    if (savingsRatio > 0.3) return { label: 'Sangat Sehat', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: Heart };
-    if (savingsRatio > 0) return { label: 'Stabil', color: 'text-sky-600', bg: 'bg-sky-50', icon: Activity };
-    return { label: 'Perlu Perhatian', color: 'text-amber-600', bg: 'bg-amber-50', icon: AlertCircle };
+    if (savingsRatio > 0.3) return { label: 'Sangat Sehat', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', icon: Heart };
+    if (savingsRatio > 0) return { label: 'Stabil', color: 'text-sky-600 dark:text-sky-400', bg: 'bg-sky-50 dark:bg-sky-950/40', icon: Activity };
+    return { label: 'Perlu Perhatian', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40', icon: AlertCircle };
   }, [monthlyTotals]);
 
   const chartData = useMemo(() => {
     if (!mounted) return [];
+    const [y, m, d0] = dateKeyWIB(new Date()).split('-').map(Number);
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      const label = d.toLocaleDateString('id-ID', { weekday: 'short' });
-      const dayTransactions = transactions.filter(t => {
-        const tDate = new Date(t.date);
-        return tDate.toDateString() === d.toDateString();
-      });
+      const d = new Date(Date.UTC(y, m - 1, d0 - (6 - i), 12));
+      const label = d.toLocaleDateString('id-ID', { weekday: 'short', timeZone: 'Asia/Jakarta' });
+      const dKey = dateKeyWIB(d);
+      const dayTransactions = transactions.filter(t => dateKeyWIB(t.date) === dKey);
       const netValue = dayTransactions.reduce((acc, t) => acc + (t.type === 'income' ? t.amount : -t.amount), 0);
       return { name: label, balance: netValue };
     });
@@ -154,11 +149,11 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
               <p className="text-[10px] font-medium text-muted-foreground mb-1">Awal</p>
               <p className="font-semibold text-[11px] tabular-nums truncate">{formatCurrency(initialBalance)}</p>
             </div>
-            <div className="p-3 bg-emerald-50 rounded-xl text-center min-w-0">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl text-center min-w-0">
               <p className="text-[10px] font-medium text-emerald-700 mb-1">Pemasukan</p>
               <p className="font-semibold text-[11px] text-emerald-700 tabular-nums truncate">+{formatCurrency(monthlyTotals.monthlyIncome)}</p>
             </div>
-            <div className="p-3 bg-rose-50 rounded-xl text-center min-w-0">
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl text-center min-w-0">
               <p className="text-[10px] font-medium text-rose-700 mb-1">Pengeluaran</p>
               <p className="font-semibold text-[11px] text-rose-700 tabular-nums truncate">-{formatCurrency(monthlyTotals.monthlyExpense)}</p>
             </div>
@@ -182,9 +177,9 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
                   <RechartsTooltip content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-white border border-border p-3 rounded-xl text-xs shadow-lg">
+                        <div className="bg-card border border-border p-3 rounded-xl text-xs shadow-lg">
                           <p className="text-muted-foreground mb-0.5">{payload[0].payload.name}</p>
-                          <p className={cn("font-semibold", (payload[0].value as number) >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                          <p className={cn("font-semibold", (payload[0].value as number) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
                             {formatCurrency(payload[0].value as number)}
                           </p>
                         </div>
@@ -212,7 +207,7 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
               <div key={item.id} className="space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-medium truncate max-w-[45%]">{item.name}</span>
-                  <span className={cn("tabular-nums text-right", item.percent > 90 ? "text-rose-600 font-semibold" : "text-muted-foreground")}>
+                  <span className={cn("tabular-nums text-right", item.percent > 90 ? "text-rose-600 dark:text-rose-400 font-semibold" : "text-muted-foreground")}>
                     {formatCurrency(item.spent)} / {formatCurrency(item.budget || 0)}
                   </span>
                 </div>
@@ -236,8 +231,8 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
         {/* Savings Target Card */}
         <div className="soft-card bg-primary/5">
           <div className="flex justify-between items-center mb-6">
-            <div className="h-11 w-11 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-              <Target className={cn("h-5 w-5", progressPercentage >= 100 ? "text-emerald-600" : "text-primary")} />
+            <div className="h-11 w-11 bg-card rounded-2xl flex items-center justify-center shadow-sm">
+              <Target className={cn("h-5 w-5", progressPercentage >= 100 ? "text-emerald-600 dark:text-emerald-400" : "text-primary")} />
             </div>
             <div className="text-right">
                <span className="font-bold text-2xl tracking-tight block tabular-nums">{Math.round(progressPercentage)}%</span>
@@ -250,7 +245,7 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
              <ArrowRight className="h-3 w-3 text-muted-foreground" />
              <span className="text-muted-foreground">{formatCurrency(emergencyFundTarget)}</span>
           </div>
-          <Progress value={progressPercentage} className="h-3 bg-white rounded-full overflow-hidden" />
+          <Progress value={progressPercentage} className="h-3 bg-card rounded-full overflow-hidden" />
         </div>
 
         {/* Recent Activity */}
@@ -267,10 +262,10 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
                     </div>
                     <div className="overflow-hidden">
                       <p className="font-medium text-sm truncate">{t.description}</p>
-                      <p className="text-[11px] text-muted-foreground">{formatShortDate(t.date)}</p>
+                      <p className="text-[11px] text-muted-foreground">{formatShortDate(t.date)}, {formatTime(t.date)}</p>
                     </div>
                   </div>
-                  <p className={cn("font-semibold text-sm shrink-0 tabular-nums", t.type === 'income' ? "text-emerald-600" : "text-foreground")}>
+                  <p className={cn("font-semibold text-sm shrink-0 tabular-nums", t.type === 'income' ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
                     {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                   </p>
                 </div>

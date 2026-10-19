@@ -1,9 +1,8 @@
-import path from 'node:path';
-import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { loadEnv } from './load-env';
 import { getSecurePostgresConfig } from '../src/lib/postgres-config';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+loadEnv();
 
 const DEFAULT_EMERGENCY_FUND_TARGET = 20_000_000;
 
@@ -64,7 +63,7 @@ async function counts(client: { query: (text: string) => Promise<{ rows: Array<R
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL belum dikonfigurasi di .env.local');
+    throw new Error('DATABASE_URL belum dikonfigurasi di .env');
   }
 
   const scope = resolveScope();

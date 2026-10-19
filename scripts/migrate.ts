@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import dotenv from 'dotenv';
 import { Pool } from 'pg';
+import { loadEnv } from './load-env';
 import { getSecurePostgresConfig } from '../src/lib/postgres-config';
 
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+loadEnv();
 
 const MIGRATIONS_DIR = path.resolve(process.cwd(), 'supabase', 'migrations');
 const MIGRATION_LOCK_ID = 742019061;
@@ -13,7 +13,7 @@ const MIGRATION_LOCK_ID = 742019061;
 async function main() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL belum dikonfigurasi di .env.local');
+    throw new Error('DATABASE_URL belum dikonfigurasi di .env');
   }
 
   const pool = new Pool({

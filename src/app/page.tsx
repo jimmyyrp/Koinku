@@ -12,31 +12,36 @@ import {
   CloudOff,
   Loader2,
   Activity,
-  Sparkles
+  Sparkles,
+  HandCoins
 } from 'lucide-react';
 import { Dashboard } from '@/app/components/Dashboard';
 import { TransactionList } from '@/app/components/TransactionList';
 import { TransactionForm } from '@/app/components/TransactionForm';
 import { ProfileView } from '@/app/components/ProfileView';
 import { InsightView } from '@/app/components/InsightView';
-import { Transaction, Category, Person, INITIAL_CATEGORIES } from '@/app/lib/types';
+import { UtangView } from '@/app/components/UtangView';
+import { Transaction, Category, Person, Debt, DebtDirection, INITIAL_CATEGORIES } from '@/app/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ThemeToggle } from '@/components/theme-toggle';
 
-type View = 'dashboard' | 'insights' | 'transactions' | 'profile';
+type View = 'dashboard' | 'insights' | 'transactions' | 'utang' | 'profile';
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
   const [emergencyFundTarget, setEmergencyFundTarget] = useState<number>(20000000);
   const [initialBalance, setInitialBalance] = useState<number>(0);
   
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSyncingCategories, setIsSyncingCategories] = useState(false);
+  const [isSavingDebt, setIsSavingDebt] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -45,7 +50,7 @@ export default function App() {
   const [serverStatus, setServerStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
   const { toast } = useToast();
 
-  const saveToCache = useCallback((type: 'transactions' | 'categories' | 'people' | 'profile', data: any) => {
+  const saveToCache = useCallback((type: 'transactions' | 'categories' | 'people' | 'profile' | 'debts', data: any) => {
     localStorage.setItem(`koinku_${type}`, JSON.stringify(data));
   }, []);
 
@@ -53,20 +58,22 @@ export default function App() {
     if (!navigator.onLine) return;
     setIsSyncing(true);
     try {
-      const [profileRes, catRes, transRes, peopleRes] = await Promise.all([
+      const [profileRes, catRes, transRes, peopleRes, debtsRes] = await Promise.all([
         fetch('/api/profile', { cache: 'no-store' }),
         fetch('/api/categories', { cache: 'no-store' }),
         fetch('/api/transactions', { cache: 'no-store' }),
         fetch('/api/people', { cache: 'no-store' }),
+        fetch('/api/debts', { cache: 'no-store' }),
       ]);
 
-      const allOk = profileRes.ok && catRes.ok && transRes.ok && peopleRes.ok;
+      const allOk = profileRes.ok && catRes.ok && transRes.ok && peopleRes.ok && debtsRes.ok;
       setServerStatus(allOk ? 'ok' : 'error');
 
       const profileData = await profileRes.json().catch(() => null);
       const catData = await catRes.json().catch(() => null);
       const transData = await transRes.json().catch(() => null);
       const peopleData = await peopleRes.json().catch(() => null);
+      const debtsData = await debtsRes.json().catch(() => null);
 
       // Server tidak merespons sempurna → berhenti di sini.
       // Data lokal tetap dipakai, dan tidak ada dorong data yang membanjiri
@@ -108,6 +115,11 @@ export default function App() {
       if (transData?.transactions) {
         setTransactions(transData.transactions);
         saveToCache('transactions', transData.transactions);
+      }
+
+      if (debtsData?.debts) {
+        setDebts(debtsData.debts);
+        saveToCache('debts', debtsData.debts);
       }
 
       // Dorong ke server HANYA item lokal yang belum tersinkron (id sementara
@@ -285,12 +297,14 @@ export default function App() {
     const cachedTransactions = readCache<Transaction[]>('koinku_transactions');
     const cachedCategories = readCache<Category[]>('koinku_categories');
     const cachedPeople = readCache<Person[]>('koinku_people');
+    const cachedDebts = readCache<Debt[]>('koinku_debts');
     const cachedProfile = readCache<{ initialBalance: number; emergencyFundTarget: number }>('koinku_profile');
 
     if (cachedTransactions) setTransactions(cachedTransactions);
     if (cachedCategories) setCategories(cachedCategories);
     else setCategories(INITIAL_CATEGORIES);
     if (cachedPeople) setPeople(cachedPeople);
+    if (cachedDebts) setDebts(cachedDebts);
 
     if (cachedProfile) {
       setInitialBalance(Number(cachedProfile.initialBalance) || 0);
@@ -315,6 +329,48 @@ export default function App() {
       !categories.some(current => current.name.toLowerCase() === initial.name.toLowerCase())
     );
   }, [categories]);
+
+  const handleAddDebt = async (data: { personName: string; amount: number; direction: DebtDirection; note: string; debtDate: string }) => {
+    setIsSavingDebt(true);
+    const tempId = -Math.abs(Date.now());
+    const newDebt: Debt = { id: tempId, ...data };
+    const updated = [newDebt, ...debts];
+    setDebts(updated);
+    saveToCache('debts', updated);
+
+    try {
+      const res = await fetch('/api/debts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const resp = await res.json().catch(() => null);
+      if (!res.ok) throw new Error('Gagal simpan utang');
+      if (resp?.id && resp.id !== tempId) {
+        const withId = updated.map(d => d.id === tempId ? { ...d, id: resp.id } : d);
+        setDebts(withId);
+        saveToCache('debts', withId);
+      }
+      toast({ title: 'Utang Tercatat' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Tersimpan Lokal' });
+    } finally {
+      setIsSavingDebt(false);
+    }
+  };
+
+  const handleDeleteDebt = async (id: number) => {
+    const updated = debts.filter(d => d.id !== id);
+    setDebts(updated);
+    saveToCache('debts', updated);
+    try {
+      const res = await fetch(`/api/debts?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal hapus utang');
+      toast({ title: 'Terhapus' });
+    } catch {
+      toast({ variant: 'destructive', title: 'Terhapus Lokal' });
+    }
+  };
 
   const handleUpdateProfile = async (balance: number, target: number) => {
     setIsSavingProfile(true);
@@ -399,6 +455,8 @@ export default function App() {
     const id = isEdit ? editingTransaction!.id : tempId;
     const paidById = data.paidById ?? selfPersonId ?? undefined;
     const paidPerson = people.find(p => p.id === paidById) || null;
+    const forPersonId = data.forPersonId ?? null;
+    const forPerson = people.find(p => p.id === forPersonId) || null;
     const newTx = {
       id,
       description: data.description,
@@ -406,12 +464,13 @@ export default function App() {
       type: data.type,
       category_id: data.categoryId,
       paid_by_id: paidById,
+      for_person_id: forPersonId,
       date: editingTransaction?.date || new Date().toISOString(),
     };
 
     let updated = isEdit
-      ? transactions.map(t => t.id === id ? { ...t, ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null } : t)
-      : [{ ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null } as Transaction, ...transactions];
+      ? transactions.map(t => t.id === id ? { ...t, ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null, forPersonId: forPersonId ?? null, forPersonName: forPerson?.name ?? null, forPersonIsSelf: forPerson?.isSelf ?? null } : t)
+      : [{ ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null, forPersonId: forPersonId ?? null, forPersonName: forPerson?.name ?? null, forPersonIsSelf: forPerson?.isSelf ?? null } as Transaction, ...transactions];
 
     setTransactions(updated as Transaction[]);
     saveToCache('transactions', updated);
@@ -530,7 +589,7 @@ export default function App() {
   const handleExportCSV = () => {
     const headers = ['Tanggal', 'Deskripsi', 'Tipe', 'Nominal', 'Kategori'];
     const rows = transactions.map(t => [
-      new Date(t.date).toLocaleDateString(),
+      new Date(t.date).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' }),
       t.description,
       t.type === 'income' ? 'Masuk' : 'Keluar',
       t.amount,
@@ -564,7 +623,7 @@ export default function App() {
       return { tone: 'error', label: 'Mode Lokal', sub: 'Server DB belum terjangkau', Icon: CloudOff };
     }
     if (serverStatus === 'ok') {
-      return { tone: 'ok', label: 'Tersinkron', sub: 'Supabase terhubung', Icon: Wifi };
+      return { tone: 'ok', label: 'Tersinkron', sub: 'Terhubung ke server', Icon: Wifi };
     }
     return { tone: 'idle', label: 'Memeriksa...', sub: 'Mengecek koneksi', Icon: Wifi };
   })();
@@ -573,15 +632,16 @@ export default function App() {
     { id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
     { id: 'insights', label: 'Insight', icon: Sparkles },
     { id: 'transactions', label: 'Riwayat', icon: History },
+    { id: 'utang', label: 'Utang', icon: HandCoins },
     { id: 'profile', label: 'Akun', icon: User },
   ];
 
-  const pageTitle = view === 'dashboard' ? 'Beranda' : view === 'insights' ? 'Insight' : view === 'transactions' ? 'Riwayat' : 'Pengaturan';
+  const pageTitle = view === 'dashboard' ? 'Beranda' : view === 'insights' ? 'Insight' : view === 'transactions' ? 'Riwayat' : view === 'utang' ? 'Utang' : 'Pengaturan';
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-background overflow-hidden relative">
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex w-72 flex-col bg-white/80 backdrop-blur-xl border-r border-border p-6 gap-6 shrink-0 h-full z-40">
+      <aside className="hidden md:flex w-72 flex-col bg-card/90 backdrop-blur-xl border-r border-border p-6 gap-6 shrink-0 h-full z-40">
         <div className="flex items-center gap-3 px-1 pt-1">
           <div className="h-11 w-11 bg-primary flex items-center justify-center rounded-2xl shadow-sm">
             <CreditCard className="text-white h-5 w-5" />
@@ -618,16 +678,16 @@ export default function App() {
 
         <div className={cn(
           "p-4 rounded-2xl border flex items-center gap-3",
-          status.tone === 'offline' ? "bg-rose-50 border-rose-100" :
-          status.tone === 'error' ? "bg-amber-50 border-amber-100" :
-          status.tone === 'sync' ? "bg-primary/5 border-primary/15" :
-          "bg-emerald-50 border-emerald-100"
+          status.tone === 'offline' ? "bg-rose-50 border-rose-100 dark:bg-rose-950/40 dark:border-rose-900" :
+          status.tone === 'error' ? "bg-amber-50 border-amber-100 dark:bg-amber-950/40 dark:border-amber-900" :
+          status.tone === 'sync' ? "bg-primary/5 border-primary/15 dark:bg-primary/10 dark:border-primary/25" :
+          "bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900"
         )}>
           <status.Icon className={cn(
             "h-5 w-5 shrink-0",
-            status.tone === 'offline' ? "text-rose-500" :
-            status.tone === 'error' ? "text-amber-500" :
-            "text-emerald-600",
+            status.tone === 'offline' ? "text-rose-500 dark:text-rose-400" :
+            status.tone === 'error' ? "text-amber-500 dark:text-amber-400" :
+            "text-emerald-600 dark:text-emerald-400",
             status.tone === 'sync' && "animate-spin"
           )} />
           <div className="min-w-0">
@@ -639,7 +699,7 @@ export default function App() {
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
         {/* Header */}
-        <header className="h-16 md:h-20 bg-white/80 backdrop-blur-xl border-b border-border px-4 md:px-10 flex items-center justify-between shrink-0 z-40">
+        <header className="h-16 md:h-20 bg-card/90 backdrop-blur-xl border-b border-border px-4 md:px-10 flex items-center justify-between shrink-0 z-40">
           <div className="flex items-center gap-3">
             <div className="md:hidden h-10 w-10 bg-primary rounded-xl flex items-center justify-center">
               <Activity className="text-white h-5 w-5" />
@@ -650,11 +710,11 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3 shrink-0">
              {!isOnline ? (
-               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-full">
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-3 py-1.5 rounded-full">
                  <WifiOff className="h-3.5 w-3.5" /> Offline
                </span>
              ) : serverStatus === 'error' ? (
-               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full">
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-full">
                  <CloudOff className="h-3.5 w-3.5" /> Lokal
                </span>
              ) : isSyncing ? (
@@ -662,10 +722,11 @@ export default function App() {
                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sinkron
                </span>
              ) : (
-               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
+               <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-full">
                  <Wifi className="h-3.5 w-3.5" /> Tersinkron
                </span>
              )}
+             <ThemeToggle />
              <Avatar className="h-10 w-10 ring-2 ring-border">
                <AvatarImage src={`https://picsum.photos/seed/user-pribadi/100`} alt="Avatar pengguna" />
                <AvatarFallback className="bg-primary/10 text-primary font-semibold">U</AvatarFallback>
@@ -700,6 +761,14 @@ export default function App() {
                 onEdit={(t) => { setEditingTransaction(t); setIsFormOpen(true); }} 
               />
             )}
+            {view === 'utang' && (
+              <UtangView
+                debts={debts}
+                isSaving={isSavingDebt}
+                onAddDebt={handleAddDebt}
+                onDeleteDebt={handleDeleteDebt}
+              />
+            )}
             {view === 'profile' && (
               <ProfileView 
                 transactions={transactions}
@@ -725,7 +794,7 @@ export default function App() {
 
         {/* Mobile Navigation */}
         <div className="md:hidden fixed inset-x-0 bottom-0 px-4 pt-4 z-50 pointer-events-none safe-area-bottom">
-          <nav className="max-w-md mx-auto h-16 bg-white/95 backdrop-blur-xl border border-border rounded-[26px] px-1.5 flex items-center justify-between shadow-lg pointer-events-auto">
+          <nav className="max-w-md mx-auto h-16 bg-card/95 backdrop-blur-xl border border-border rounded-[26px] px-1.5 flex items-center justify-between shadow-lg pointer-events-auto">
             {navItems.slice(0, 2).map((item) => (
               <button
                 key={item.id}
@@ -764,7 +833,7 @@ export default function App() {
       </main>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="p-0 bg-white max-w-lg w-[calc(100%-2rem)] sm:w-full h-[90dvh] rounded-[32px] overflow-hidden flex flex-col border border-border shadow-xl [&>button]:hidden">
+        <DialogContent className="p-0 bg-card max-w-lg w-[calc(100%-2rem)] sm:w-full h-[90dvh] rounded-[32px] overflow-hidden flex flex-col border border-border shadow-xl [&>button]:hidden">
           <DialogHeader className="p-6 pb-0 sr-only">
             <DialogTitle>Form Transaksi</DialogTitle>
             <DialogDescription>Catat pengeluaran atau pemasukan baru Anda.</DialogDescription>

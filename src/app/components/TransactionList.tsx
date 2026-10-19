@@ -12,7 +12,9 @@ import {
   LayoutGrid,
   Sparkles,
   Filter,
-  X
+  X,
+  Users,
+  AlertCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -119,6 +121,23 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
       .filter(d => d.value > 0);
   }, [categories, activeTab, filtered]);
 
+  const utangSummary = useMemo(() => {
+    const groups: { [name: string]: { personId: number; total: number; count: number } } = {};
+    transactions
+      .filter(t => t.type === 'expense' && t.paidById != null && t.paidByIsSelf === false && t.paidByName)
+      .forEach(t => {
+        const name = t.paidByName as string;
+        if (!groups[name]) groups[name] = { personId: t.paidById as number, total: 0, count: 0 };
+        groups[name].total += t.amount;
+        groups[name].count += 1;
+      });
+    return Object.entries(groups)
+      .map(([name, g]) => ({ name, ...g }))
+      .sort((a, b) => b.total - a.total);
+  }, [transactions]);
+
+  const totalUtang = utangSummary.reduce((sum, u) => sum + u.total, 0);
+
   if (!mounted) return null;
 
   return (
@@ -198,11 +217,17 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
                             <h3 className="text-sm md:text-base font-semibold truncate tracking-tight leading-tight">{t.description}</h3>
                             <p className="text-[11px] text-muted-foreground truncate">
                               {cat?.name || 'Tanpa Kategori'} • {formatTime(t.date)}
+                              {t.paidByName && !t.paidByIsSelf ? ` • Dibayar ${t.paidByName}` : ''}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between md:justify-end gap-3 md:gap-4 shrink-0 md:ml-4">
+                          {t.type === 'expense' && t.paidByName && !t.paidByIsSelf && (
+                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-1 rounded-full whitespace-nowrap">
+                              Utang
+                            </span>
+                          )}
                           <p className={cn("text-base md:text-lg font-semibold tabular-nums whitespace-nowrap", t.type === 'income' ? "text-emerald-600" : "text-foreground")}>
                             {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                           </p>
@@ -261,6 +286,37 @@ export function TransactionList({ transactions, categories, onDelete, onEdit }: 
 
       {/* Analytics Sidebar */}
       <div className="lg:col-span-4 space-y-6">
+        {utangSummary.length > 0 && (
+          <div className="soft-card lg:sticky lg:top-6">
+            <div className="flex items-center gap-2 mb-4 text-amber-600">
+              <AlertCircle className="h-4 w-4" />
+              <h4 className="text-sm font-semibold">Utang Belum Dibayar</h4>
+            </div>
+            <div className="space-y-3">
+              {utangSummary.map((u) => (
+                <div key={u.personId} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                      <Users className="h-3.5 w-3.5 text-amber-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate">{u.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{u.count} transaksi</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold tabular-nums text-amber-600 whitespace-nowrap">
+                    {formatCurrency(u.total)}
+                  </span>
+                </div>
+              ))}
+              <div className="h-px bg-border" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Total</span>
+                <span className="text-sm font-bold tabular-nums text-amber-600">{formatCurrency(totalUtang)}</span>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="soft-card lg:sticky lg:top-6">
           <div className="flex items-center gap-2 mb-6 text-muted-foreground">
             <LayoutGrid className="h-4 w-4" />

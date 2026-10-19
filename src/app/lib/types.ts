@@ -8,6 +8,12 @@ export interface Category {
   budget?: number; // Anggaran bulanan (opsional)
 }
 
+export interface Person {
+  id: number;
+  name: string;
+  isSelf: boolean;
+}
+
 export interface Transaction {
   id: number;
   description: string;
@@ -15,6 +21,9 @@ export interface Transaction {
   date: string;
   type: TransactionType;
   categoryId: number;
+  paidById?: number | null;
+  paidByName?: string | null;
+  paidByIsSelf?: boolean | null;
 }
 
 export const INITIAL_CATEGORIES: Category[] = [

@@ -4,6 +4,11 @@ import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
   // Kunci root proyek agar Next tidak salah mendeteksi workspace (ada pnpm-lock di folder induk)
   outputFileTracingRoot: path.join(__dirname),
+  // Sertakan root CA Supabase ke bundel server agar koneksi TLS tetap
+  // terverifikasi saat di-deploy (mis. Vercel/Render) dengan berkas sertifikat.
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./supabase/certs/**/*'],
+  },
   images: {
     remotePatterns: [
       {

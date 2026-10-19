@@ -3,6 +3,7 @@ import { toIntId } from '@/lib/id';
 import { query } from '@/lib/supabase-db';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

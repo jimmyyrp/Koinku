@@ -14,9 +14,10 @@ export function getPool(): Pool {
     throw new Error('DATABASE_URL belum dikonfigurasi di .env.local');
   }
 
+  const configuredMax = Number(process.env.DATABASE_POOL_MAX);
   const pool = new Pool({
     ...getSecurePostgresConfig(connectionString),
-    max: 10,
+    max: Number.isInteger(configuredMax) && configuredMax > 0 ? configuredMax : 10,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
   });

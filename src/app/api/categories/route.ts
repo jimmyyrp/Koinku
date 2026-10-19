@@ -3,6 +3,7 @@ import { normalizeCategoryId, toIntId } from '@/lib/id';
 import { query, withTransaction } from '@/lib/supabase-db';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 interface CategoryInput {
   id?: unknown;

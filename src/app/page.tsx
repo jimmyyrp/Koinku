@@ -19,7 +19,7 @@ import { TransactionList } from '@/app/components/TransactionList';
 import { TransactionForm } from '@/app/components/TransactionForm';
 import { ProfileView } from '@/app/components/ProfileView';
 import { InsightView } from '@/app/components/InsightView';
-import { Transaction, Category, INITIAL_CATEGORIES } from '@/app/lib/types';
+import { Transaction, Category, Person, INITIAL_CATEGORIES } from '@/app/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -31,6 +31,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [emergencyFundTarget, setEmergencyFundTarget] = useState<number>(20000000);
   const [initialBalance, setInitialBalance] = useState<number>(0);
   
@@ -44,7 +45,7 @@ export default function App() {
   const [serverStatus, setServerStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
   const { toast } = useToast();
 
-  const saveToCache = useCallback((type: 'transactions' | 'categories' | 'profile', data: any) => {
+  const saveToCache = useCallback((type: 'transactions' | 'categories' | 'people' | 'profile', data: any) => {
     localStorage.setItem(`koinku_${type}`, JSON.stringify(data));
   }, []);
 
@@ -52,16 +53,38 @@ export default function App() {
     if (!navigator.onLine) return;
     setIsSyncing(true);
     try {
-      const [profileRes, catRes, transRes] = await Promise.all([
+      const [profileRes, catRes, transRes, peopleRes] = await Promise.all([
         fetch('/api/profile', { cache: 'no-store' }),
         fetch('/api/categories', { cache: 'no-store' }),
         fetch('/api/transactions', { cache: 'no-store' }),
+        fetch('/api/people', { cache: 'no-store' }),
       ]);
 
-      const allOk = profileRes.ok && catRes.ok && transRes.ok;
+      const allOk = profileRes.ok && catRes.ok && transRes.ok && peopleRes.ok;
       setServerStatus(allOk ? 'ok' : 'error');
 
       const profileData = await profileRes.json().catch(() => null);
+      const catData = await catRes.json().catch(() => null);
+      const transData = await transRes.json().catch(() => null);
+      const peopleData = await peopleRes.json().catch(() => null);
+
+      // Server tidak merespons sempurna → berhenti di sini.
+      // Data lokal tetap dipakai, dan tidak ada dorong data yang membanjiri
+      // request lambat saat database tidak terjangkau.
+      if (!allOk) return;
+
+      // Penanda reset dari server: bila token berubah (mis. data dibersihkan
+      // dari perangkat lain atau dari dashboard), buang cache transaksi lokal
+      // agar aplikasi benar-benar mulai dari nol dan tidak mengirim balik
+      // riwayat lama ke server.
+      const serverResetAt = profileData?.profile?.dataResetAt as string | null | undefined;
+      const localResetAt = localStorage.getItem('koinku_data_reset_at');
+      if (serverResetAt && serverResetAt !== localResetAt) {
+        localStorage.setItem('koinku_transactions', JSON.stringify([]));
+        localStorage.setItem('koinku_data_reset_at', serverResetAt);
+        setTransactions([]);
+      }
+
       if (profileData?.profile) {
         const p = { 
           initialBalance: Number(profileData.profile.initialBalance), 
@@ -72,52 +95,81 @@ export default function App() {
         saveToCache('profile', p);
       }
 
-      const catData = await catRes.json().catch(() => null);
       if (catData?.categories && catData.categories.length > 0) {
         setCategories(catData.categories);
         saveToCache('categories', catData.categories);
       }
 
-      const transData = await transRes.json().catch(() => null);
+      if (peopleData?.people && peopleData.people.length > 0) {
+        setPeople(peopleData.people);
+        saveToCache('people', peopleData.people);
+      }
+
       if (transData?.transactions) {
         setTransactions(transData.transactions);
         saveToCache('transactions', transData.transactions);
       }
 
-      // Server tidak merespons sempurna → berhenti di sini.
-      // Data lokal tetap dipakai, dan tidak ada dorong data yang membanjiri
-      // request lambat saat database tidak terjangkau.
-      if (!allOk) return;
-
-      // Sinkronkan data cache lokal ke server jika server kosong
-      // atau masih ada item dengan id sementara (negatif/string) yang belum di-sync
+      // Dorong ke server HANYA item lokal yang belum tersinkron (id sementara
+      // negatif/string). Jangan pernah mengunggah ulang seluruh cache hanya
+      // karena server kosong, agar reset data tetap bertahan.
       const cachedTransactions = localStorage.getItem('koinku_transactions');
       const cachedCategories = localStorage.getItem('koinku_categories');
+      const cachedPeople = localStorage.getItem('koinku_people');
       const cachedProfile = localStorage.getItem('koinku_profile');
 
       let localTrans: any[] = [];
       let localCats: any[] = [];
+      let localPeople: any[] = [];
       try {
         const parsedTrans = cachedTransactions ? JSON.parse(cachedTransactions) : null;
         const parsedCats = cachedCategories ? JSON.parse(cachedCategories) : null;
+        const parsedPeople = cachedPeople ? JSON.parse(cachedPeople) : null;
         if (Array.isArray(parsedTrans)) localTrans = parsedTrans;
         if (Array.isArray(parsedCats)) localCats = parsedCats;
+        if (Array.isArray(parsedPeople)) localPeople = parsedPeople;
       } catch {
         // cache corrupt — abaikan
       }
 
-      const serverEmptyTrans = !transData?.transactions || transData.transactions.length === 0;
-      const serverEmptyCats = !catData?.categories || catData.categories.length === 0;
-
       const isUnsyncedId = (id: any) => id == null || typeof id === 'string' || id <= 0;
       const pendingTrans = localTrans.filter((t) => isUnsyncedId(t.id));
       const pendingCats = localCats.filter((c) => isUnsyncedId(c.id));
+      const pendingPeople = localPeople.filter((p) => isUnsyncedId(p.id));
+
+      // Sinkron orang dulu agar id baru bisa dipakai transaksi (paid_by_id)
+      const peopleIdMap: Record<string, number> = {};
+      let pushedPeople = false;
+      if (pendingPeople.length > 0) {
+        const toPush = pendingPeople;
+        try {
+          const res = await fetch('/api/people', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(toPush),
+          });
+          if (res.ok) {
+            const resp = await res.json().catch(() => null);
+            if (resp?.ids) {
+              toPush.forEach((p, i) => {
+                const newId = resp.ids[i];
+                if (newId && p.id !== newId) peopleIdMap[String(p.id)] = newId;
+              });
+            } else if (resp?.id) {
+              peopleIdMap[String(toPush[0].id)] = resp.id;
+            }
+            pushedPeople = true;
+          }
+        } catch {
+          // offline — tetap lokal
+        }
+      }
 
       // Sinkron kategori dulu agar id baru bisa dipakai transaksi
       const catIdMap: Record<string, number> = {};
       let pushedCats = false;
-      if (localCats.length > 0 && (serverEmptyCats || pendingCats.length > 0)) {
-        const toPush = pendingCats.length > 0 ? pendingCats : localCats;
+      if (pendingCats.length > 0) {
+        const toPush = pendingCats;
         try {
           const res = await fetch('/api/categories', {
             method: 'POST',
@@ -142,13 +194,17 @@ export default function App() {
       }
 
       let pushedTrans = false;
-      if (localTrans.length > 0 && (serverEmptyTrans || pendingTrans.length > 0)) {
-        const toPush = pendingTrans.length > 0 ? pendingTrans : localTrans;
+      if (pendingTrans.length > 0) {
+        const toPush = pendingTrans;
         let ok = true;
         for (const t of toPush) {
           if (catIdMap[String(t.category_id)] != null) {
             t.category_id = catIdMap[String(t.category_id)];
             t.categoryId = t.category_id;
+          }
+          if (peopleIdMap[String(t.paid_by_id)] != null) {
+            t.paid_by_id = peopleIdMap[String(t.paid_by_id)];
+            t.paidById = t.paid_by_id;
           }
           try {
             const res = await fetch('/api/transactions', {
@@ -181,13 +237,15 @@ export default function App() {
       }
 
       // Ambil ulang data server agar id int hasil sinkron ikut terekam di cache lokal
-      if (pushedTrans || pushedCats) {
-        const [t2, c2] = await Promise.all([
+      if (pushedTrans || pushedCats || pushedPeople) {
+        const [t2, c2, p2] = await Promise.all([
           fetch('/api/transactions', { cache: 'no-store' }),
           fetch('/api/categories', { cache: 'no-store' }),
+          fetch('/api/people', { cache: 'no-store' }),
         ]);
         const td = await t2.json().catch(() => null);
         const cd = await c2.json().catch(() => null);
+        const pd = await p2.json().catch(() => null);
         if (td?.transactions) {
           setTransactions(td.transactions);
           saveToCache('transactions', td.transactions);
@@ -195,6 +253,10 @@ export default function App() {
         if (cd?.categories && cd.categories.length > 0) {
           setCategories(cd.categories);
           saveToCache('categories', cd.categories);
+        }
+        if (pd?.people && pd.people.length > 0) {
+          setPeople(pd.people);
+          saveToCache('people', pd.people);
         }
       }
     } catch (err) {
@@ -222,11 +284,13 @@ export default function App() {
 
     const cachedTransactions = readCache<Transaction[]>('koinku_transactions');
     const cachedCategories = readCache<Category[]>('koinku_categories');
+    const cachedPeople = readCache<Person[]>('koinku_people');
     const cachedProfile = readCache<{ initialBalance: number; emergencyFundTarget: number }>('koinku_profile');
 
     if (cachedTransactions) setTransactions(cachedTransactions);
     if (cachedCategories) setCategories(cachedCategories);
     else setCategories(INITIAL_CATEGORIES);
+    if (cachedPeople) setPeople(cachedPeople);
 
     if (cachedProfile) {
       setInitialBalance(Number(cachedProfile.initialBalance) || 0);
@@ -293,22 +357,61 @@ export default function App() {
     }
   };
 
+  const selfPersonId = people.find(p => p.isSelf)?.id ?? people[0]?.id;
+
+  const handleAddPerson = async (name: string): Promise<Person | null> => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+
+    const existing = people.find(p => p.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing;
+
+    const tempId = -Math.abs(Date.now());
+    const newPerson: Person = { id: tempId, name: trimmed, isSelf: false };
+    const updated = [...people, newPerson];
+    setPeople(updated);
+    saveToCache('people', updated);
+
+    try {
+      const res = await fetch('/api/people', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, is_self: false }),
+      });
+      const resp = await res.json().catch(() => null);
+      if (!res.ok) throw new Error('Gagal tambah orang');
+      if (resp?.id && resp.id !== tempId) {
+        const withId = updated.map(p => p.id === tempId ? { ...p, id: resp.id } : p);
+        setPeople(withId);
+        saveToCache('people', withId);
+        return { ...newPerson, id: resp.id };
+      }
+      return newPerson;
+    } catch {
+      toast({ variant: "destructive", title: "Tersimpan Lokal" });
+      return newPerson;
+    }
+  };
+
   const handleAddTransaction = async (data: any) => {
     const isEdit = !!editingTransaction;
     const tempId = -Math.abs(Date.now());
     const id = isEdit ? editingTransaction!.id : tempId;
+    const paidById = data.paidById ?? selfPersonId ?? undefined;
+    const paidPerson = people.find(p => p.id === paidById) || null;
     const newTx = {
       id,
       description: data.description,
       amount: Number(data.amount),
       type: data.type,
       category_id: data.categoryId,
+      paid_by_id: paidById,
       date: editingTransaction?.date || new Date().toISOString(),
     };
 
     let updated = isEdit
-      ? transactions.map(t => t.id === id ? { ...t, ...newTx, categoryId: data.categoryId } : t)
-      : [{ ...newTx, categoryId: data.categoryId } as Transaction, ...transactions];
+      ? transactions.map(t => t.id === id ? { ...t, ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null } : t)
+      : [{ ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null } as Transaction, ...transactions];
 
     setTransactions(updated as Transaction[]);
     saveToCache('transactions', updated);
@@ -666,11 +769,13 @@ export default function App() {
             <DialogTitle>Form Transaksi</DialogTitle>
             <DialogDescription>Catat pengeluaran atau pemasukan baru Anda.</DialogDescription>
           </DialogHeader>
-          <TransactionForm 
-            categories={categories} 
-            initialData={editingTransaction} 
-            onSubmit={handleAddTransaction} 
-            onCancel={() => setIsFormOpen(false)} 
+          <TransactionForm
+            categories={categories}
+            people={people}
+            initialData={editingTransaction}
+            onSubmit={handleAddTransaction}
+            onCancel={() => setIsFormOpen(false)}
+            onAddPerson={handleAddPerson}
           />
         </DialogContent>
       </Dialog>

@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/supabase-db';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
   try {
     const { rows } = await query<{
       initial_balance: string;
       emergency_fund_target: string;
+      data_reset_at: Date;
     }>(
-      `SELECT initial_balance, emergency_fund_target
+      `SELECT initial_balance, emergency_fund_target, data_reset_at
        FROM public.profiles
        WHERE id = 'global'`
     );
@@ -18,6 +20,9 @@ export async function GET(req: NextRequest) {
       profile: {
         initialBalance: Number(profile?.initial_balance ?? 0),
         emergencyFundTarget: Number(profile?.emergency_fund_target ?? 20000000),
+        dataResetAt: profile?.data_reset_at
+          ? new Date(profile.data_reset_at).toISOString()
+          : null,
       },
     });
   } catch (error) {

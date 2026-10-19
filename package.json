@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "migrate": "tsx scripts/migrate.ts",
+    "reset-data": "tsx scripts/reset-data.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

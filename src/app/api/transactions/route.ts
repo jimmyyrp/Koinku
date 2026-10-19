@@ -3,6 +3,7 @@ import { normalizeCategoryId, toIntId } from '@/lib/id';
 import { query, withTransaction } from '@/lib/supabase-db';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
 interface TransactionInput {
   id?: unknown;
@@ -12,6 +13,8 @@ interface TransactionInput {
   type?: unknown;
   category_id?: unknown;
   categoryId?: unknown;
+  paid_by_id?: unknown;
+  paidById?: unknown;
 }
 
 export async function GET(req: NextRequest) {
@@ -23,10 +26,15 @@ export async function GET(req: NextRequest) {
       date: Date;
       type: 'income' | 'expense';
       category_id: string | null;
+      paid_by_id: string | null;
+      paid_by_name: string | null;
+      paid_by_is_self: boolean | null;
     }>(
-      `SELECT id, description, amount, date, type, category_id
-       FROM public.transactions
-       ORDER BY date DESC, id DESC`
+      `SELECT t.id, t.description, t.amount, t.date, t.type, t.category_id,
+              t.paid_by_id, p.name AS paid_by_name, p.is_self AS paid_by_is_self
+       FROM public.transactions t
+       LEFT JOIN public.people p ON p.id = t.paid_by_id
+       ORDER BY t.date DESC, t.id DESC`
     );
     const transactions = rows.map((transaction) => ({
       id: toIntId(transaction.id) ?? 0,
@@ -35,6 +43,9 @@ export async function GET(req: NextRequest) {
       date: new Date(transaction.date).toISOString(),
       type: transaction.type,
       categoryId: normalizeCategoryId(transaction.category_id) ?? 0,
+      paidById: toIntId(transaction.paid_by_id),
+      paidByName: transaction.paid_by_name,
+      paidByIsSelf: transaction.paid_by_is_self,
     }));
     return NextResponse.json({ transactions });
   } catch (error) {
@@ -53,6 +64,7 @@ export async function POST(req: NextRequest) {
     const requestedId = toIntId(body.id);
     const rawDate = body.date == null ? new Date() : new Date(String(body.date));
     const categoryId = normalizeCategoryId(body.category_id ?? body.categoryId);
+    const paidById = toIntId(body.paid_by_id ?? body.paidById);
 
     if (
       !description ||
@@ -60,7 +72,8 @@ export async function POST(req: NextRequest) {
       amount < 0 ||
       (type !== 'income' && type !== 'expense') ||
       Number.isNaN(rawDate.getTime()) ||
-      (categoryId != null && categoryId <= 0)
+      (categoryId != null && categoryId <= 0) ||
+      (paidById != null && paidById <= 0)
     ) {
       return NextResponse.json({ error: 'Data transaksi tidak valid' }, { status: 400 });
     }
@@ -70,10 +83,10 @@ export async function POST(req: NextRequest) {
         const updated = await client.query<{ id: string }>(
           `UPDATE public.transactions
            SET description = $1, amount = $2, date = $3, type = $4,
-               category_id = $5, updated_at = now()
-           WHERE id = $6
+               category_id = $5, paid_by_id = $6, updated_at = now()
+           WHERE id = $7
            RETURNING id`,
-          [description, amount, rawDate.toISOString(), type, categoryId, requestedId]
+          [description, amount, rawDate.toISOString(), type, categoryId, paidById, requestedId]
         );
         if (updated.rowCount) {
           return { id: Number(updated.rows[0].id), edit: true };
@@ -82,10 +95,10 @@ export async function POST(req: NextRequest) {
 
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO public.transactions
-           (description, amount, date, type, category_id, updated_at)
-         VALUES ($1, $2, $3, $4, $5, now())
+           (description, amount, date, type, category_id, paid_by_id, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now())
          RETURNING id`,
-        [description, amount, rawDate.toISOString(), type, categoryId]
+        [description, amount, rawDate.toISOString(), type, categoryId, paidById]
       );
       return { id: Number(inserted.rows[0].id), edit: false };
     });
@@ -99,7 +112,13 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    await query('DELETE FROM public.transactions');
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM public.transactions');
+      // Tandai reset agar klien membuang cache lokal dan tidak mengirim balik data lama.
+      await client.query(
+        `UPDATE public.profiles SET data_reset_at = now() WHERE id = 'global'`
+      );
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('DELETE /api/transactions Error:', error);

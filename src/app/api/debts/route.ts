@@ -126,9 +126,21 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
   try {
-    const { rowCount } = await query(`DELETE FROM public.debts`);
+    const id = toIntId(req.nextUrl.searchParams.get('id'));
+    if (id != null && id <= 0) {
+      return NextResponse.json({ error: 'ID utang tidak valid' }, { status: 400 });
+    }
+
+    const { rowCount } =
+      id != null
+        ? await query(`DELETE FROM public.debts WHERE id = $1`, [id])
+        : await query(`DELETE FROM public.debts`);
+
+    if (id != null && rowCount === 0) {
+      return NextResponse.json({ error: 'Utang tidak ditemukan' }, { status: 404 });
+    }
     return NextResponse.json({ ok: true, deleted: rowCount ?? 0 });
   } catch (error) {
     console.error('DELETE /api/debts Error:', error);

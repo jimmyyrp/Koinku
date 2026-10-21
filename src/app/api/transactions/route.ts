@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
            ON CONFLICT (source_transaction_id) WHERE source_transaction_id IS NOT NULL
            DO UPDATE SET person_name = EXCLUDED.person_name, amount = EXCLUDED.amount,
                          direction = 'lend', note = EXCLUDED.note, debt_date = EXCLUDED.debt_date`,
-          [forPerson.name, amount, description, rawDate.toISOString().slice(0, 10), txId]
+          [forPerson.name, amount, description, rawDate.toISOString(), txId]
         );
       } else if (payerOwesMe && payer) {
         await client.query(
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
            ON CONFLICT (source_transaction_id) WHERE source_transaction_id IS NOT NULL
            DO UPDATE SET person_name = EXCLUDED.person_name, amount = EXCLUDED.amount,
                          direction = 'borrow', note = EXCLUDED.note, debt_date = EXCLUDED.debt_date`,
-          [payer.name, amount, description, rawDate.toISOString().slice(0, 10), txId]
+          [payer.name, amount, description, rawDate.toISOString(), txId]
         );
       } else {
         await client.query(

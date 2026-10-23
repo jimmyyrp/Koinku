@@ -37,6 +37,7 @@ interface InsightViewProps {
   categories: Category[];
   initialBalance: number;
   emergencyFundTarget: number;
+  emergencyFundBalance: number;
 }
 
 type Tone = 'good' | 'warn' | 'bad' | 'info';
@@ -72,6 +73,7 @@ export function InsightView({
   categories,
   initialBalance,
   emergencyFundTarget,
+  emergencyFundBalance,
 }: InsightViewProps) {
   const { year: currentYear, month: currentMonth, day: dayOfMonth } = nowWIBParts();
   const daysInMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 0)).getUTCDate();
@@ -102,7 +104,9 @@ export function InsightView({
 
     const savingsRatio = monthIncome > 0 ? (monthIncome - monthExpense) / monthIncome : 0;
     const targetProgress =
-      emergencyFundTarget > 0 ? Math.min(Math.max(balance / emergencyFundTarget, 0), 1) : 0;
+      emergencyFundTarget > 0
+        ? Math.min(Math.max(emergencyFundBalance / emergencyFundTarget, 0), 1)
+        : 0;
 
     const score = Math.min(
       Math.max(savingsRatio * 60 + targetProgress * 40, 0),
@@ -121,7 +125,7 @@ export function InsightView({
       score,
       daysLeft: Math.max(daysInMonth - dayOfMonth, 0),
     };
-  }, [transactions, initialBalance, emergencyFundTarget, currentMonth, currentYear, dayOfMonth, daysInMonth]);
+  }, [transactions, initialBalance, emergencyFundTarget, emergencyFundBalance, currentMonth, currentYear, dayOfMonth, daysInMonth]);
 
   const trendData = useMemo(() => {
     return Array.from({ length: 6 }, (_, i) => {

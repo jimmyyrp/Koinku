@@ -6,9 +6,10 @@ Aplikasi manajemen keuangan pribadi dengan desain modern-soft, Next.js 15, dan S
 
 - Profil, kategori, dan transaksi disimpan di Supabase PostgreSQL.
 - API server-side memakai koneksi `DATABASE_URL`; secret key Supabase tidak dikirim ke browser.
-- Cache lokal dan sinkronisasi offline tetap tersedia.
+- Data selalu dibaca dari database online; tidak ada cache atau mode offline di browser.
 - Migrasi database SQL berurutan, transactional, dan tercatat dengan checksum.
 - Halaman Insight: skor kesehatan finansial, tren & proyeksi, analisis kategori, serta tips otomatis.
+- Halaman Rencana Gaji: pembagian 40/30/20/10, pengaturan tanggal gajian (default 28), batas harian, fase dana darurat, dan jadwal alokasi otomatis.
 
 ## Menyiapkan aplikasi
 
@@ -43,7 +44,7 @@ File SQL migrasi diberi nama `YYYYMMDDNNNN_nama_migrasi.sql` dan diterapkan seca
 
 | Tabel | Kegunaan |
 |---|---|
-| `public.profiles` | Saldo awal, target dana darurat, dan penanda reset data |
+| `public.profiles` | Saldo awal, target & saldo dana darurat, gaji bulanan, tanggal gajian, status cicilan, dan penanda reset data |
 | `public.categories` | Kategori pemasukan/pengeluaran dan anggaran |
 | `public.transactions` | Transaksi dan referensi kategori |
 | `public.schema_migrations` | Riwayat migrasi yang dikelola runner |
@@ -60,9 +61,8 @@ npm run reset-data                        # kosongkan transaksi saja
 npm run reset-data -- --full              # transaksi + kategori bawaan + profil default
 ```
 
-Transaksi yang dihapus juga memperbarui `profiles.data_reset_at`. Klien membandingkan penanda ini dan
-otomatis membuang cache transaksi lokal, sehingga aplikasi benar-benar mulai dari nol dan tidak
-mengirim balik riwayat lama ke server.
+Transaksi yang dihapus juga memperbarui `profiles.data_reset_at`. Karena aplikasi selalu membaca data
+dari server, halaman akan langsung menampilkan kondisi kosong setelah reset tanpa menyisakan cache lokal.
 
 ## Skrip
 

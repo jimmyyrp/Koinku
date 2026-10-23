@@ -14,6 +14,7 @@ import {
   Activity,
   Sparkles,
   HandCoins,
+  Calculator,
   RefreshCw
 } from 'lucide-react';
 import { Dashboard } from '@/app/components/Dashboard';
@@ -22,6 +23,7 @@ import { TransactionForm } from '@/app/components/TransactionForm';
 import { ProfileView } from '@/app/components/ProfileView';
 import { InsightView } from '@/app/components/InsightView';
 import { UtangView } from '@/app/components/UtangView';
+import { SalaryPlanView } from '@/app/components/SalaryPlanView';
 import { Transaction, Category, Person, Debt, DebtDirection, INITIAL_CATEGORIES } from '@/app/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -29,7 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-type View = 'dashboard' | 'insights' | 'transactions' | 'utang' | 'profile';
+type View = 'dashboard' | 'plan' | 'insights' | 'transactions' | 'utang' | 'profile';
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
@@ -39,8 +41,13 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [emergencyFundTarget, setEmergencyFundTarget] = useState<number>(20000000);
   const [initialBalance, setInitialBalance] = useState<number>(0);
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(3300000);
+  const [payday, setPayday] = useState<number>(28);
+  const [hasInstallments, setHasInstallments] = useState<boolean>(false);
+  const [emergencyFundBalance, setEmergencyFundBalance] = useState<number>(0);
   
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [isSyncingCategories, setIsSyncingCategories] = useState(false);
   const [isSavingDebt, setIsSavingDebt] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -80,8 +87,17 @@ export default function App() {
       );
 
       if (profileData?.profile) {
-        setInitialBalance(Number(profileData.profile.initialBalance) || 0);
-        setEmergencyFundTarget(Number(profileData.profile.emergencyFundTarget) || 20000000);
+        const profile = profileData.profile;
+        const numberOrDefault = (value: unknown, fallback: number) => {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        };
+        setInitialBalance(numberOrDefault(profile.initialBalance, 0));
+        setEmergencyFundTarget(numberOrDefault(profile.emergencyFundTarget, 20000000));
+        setMonthlyIncome(numberOrDefault(profile.monthlyIncome, 3300000));
+        setPayday(numberOrDefault(profile.payday, 28));
+        setHasInstallments(Boolean(profile.hasInstallments));
+        setEmergencyFundBalance(numberOrDefault(profile.emergencyFundBalance, 0));
       }
       setCategories(Array.isArray(catData?.categories) ? catData.categories : []);
       setPeople(Array.isArray(peopleData?.people) ? peopleData.people : []);
@@ -181,6 +197,34 @@ export default function App() {
       });
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleUpdatePlan = async (data: {
+    monthlyIncome: number;
+    payday: number;
+    hasInstallments: boolean;
+    emergencyFundTarget: number;
+    emergencyFundBalance: number;
+  }) => {
+    setIsSavingPlan(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan rencana gaji');
+      await loadData();
+      toast({ title: 'Rencana Gaji Tersimpan' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setIsSavingPlan(false);
     }
   };
 
@@ -358,7 +402,20 @@ export default function App() {
   };
 
   const handleExportJSON = () => {
-    const data = JSON.stringify({ transactions, categories, initialBalance, emergencyFundTarget }, null, 2);
+    const data = JSON.stringify(
+      {
+        transactions,
+        categories,
+        initialBalance,
+        emergencyFundTarget,
+        monthlyIncome,
+        payday,
+        hasInstallments,
+        emergencyFundBalance,
+      },
+      null,
+      2
+    );
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -436,13 +493,14 @@ export default function App() {
 
   const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
     { id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
+    { id: 'plan', label: 'Rencana', icon: Calculator },
     { id: 'insights', label: 'Insight', icon: Sparkles },
     { id: 'transactions', label: 'Riwayat', icon: History },
     { id: 'utang', label: 'Utang', icon: HandCoins },
     { id: 'profile', label: 'Akun', icon: User },
   ];
 
-  const pageTitle = view === 'dashboard' ? 'Beranda' : view === 'insights' ? 'Insight' : view === 'transactions' ? 'Riwayat' : view === 'utang' ? 'Utang' : 'Pengaturan';
+  const pageTitle = view === 'dashboard' ? 'Beranda' : view === 'plan' ? 'Rencana Gaji' : view === 'insights' ? 'Insight' : view === 'transactions' ? 'Riwayat' : view === 'utang' ? 'Utang' : 'Pengaturan';
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-background overflow-hidden relative">
@@ -560,7 +618,21 @@ export default function App() {
                 transactions={transactions} 
                 categories={categories} 
                 emergencyFundTarget={emergencyFundTarget} 
+                emergencyFundBalance={emergencyFundBalance}
                 initialBalance={initialBalance} 
+              />
+            )}
+            {view === 'plan' && (
+              <SalaryPlanView
+                transactions={transactions}
+                categories={categories}
+                monthlyIncome={monthlyIncome}
+                payday={payday}
+                hasInstallments={hasInstallments}
+                emergencyFundTarget={emergencyFundTarget}
+                emergencyFundBalance={emergencyFundBalance}
+                isSaving={isSavingPlan}
+                onSavePlan={handleUpdatePlan}
               />
             )}
             {view === 'insights' && (
@@ -569,6 +641,7 @@ export default function App() {
                 categories={categories}
                 initialBalance={initialBalance}
                 emergencyFundTarget={emergencyFundTarget}
+                emergencyFundBalance={emergencyFundBalance}
               />
             )}
             {view === 'transactions' && (
@@ -593,6 +666,7 @@ export default function App() {
                 categories={categories}
                 initialBalance={initialBalance}
                 emergencyFundTarget={emergencyFundTarget}
+                emergencyFundBalance={emergencyFundBalance}
                 isOnline={isOnline}
                 isSavingProfile={isSavingProfile}
                 isSyncingCategories={isSyncingCategories}

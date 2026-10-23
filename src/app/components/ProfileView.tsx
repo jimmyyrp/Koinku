@@ -30,6 +30,7 @@ interface ProfileViewProps {
   categories: Category[];
   initialBalance: number;
   emergencyFundTarget: number;
+  emergencyFundBalance: number;
   isOnline: boolean;
   isSavingProfile: boolean;
   isSyncingCategories: boolean;
@@ -49,6 +50,7 @@ export function ProfileView({
   categories,
   initialBalance,
   emergencyFundTarget,
+  emergencyFundBalance,
   isOnline,
   isSavingProfile,
   isSyncingCategories,
@@ -80,11 +82,11 @@ export function ProfileView({
     const recentExpenses = transactions.filter(t => t.type === 'expense' && new Date(t.date) >= thirtyDaysAgo);
     const dailyAverage = recentExpenses.length > 0 ? recentExpenses.reduce((sum, t) => sum + t.amount, 0) / 30 : 0;
 
-    const progressToTarget = emergencyFundTarget > 0 ? (currentBalance / emergencyFundTarget) * 100 : 0;
+    const progressToTarget = emergencyFundTarget > 0 ? (emergencyFundBalance / emergencyFundTarget) * 100 : 0;
     const healthScore = Math.min(Math.max((savingsRatio * 0.5) + (progressToTarget * 0.5), 0), 100);
 
     return { totalIncome, totalExpense, currentBalance, savingsRatio, dailyAverage, healthScore };
-  }, [transactions, initialBalance, emergencyFundTarget]);
+  }, [transactions, initialBalance, emergencyFundTarget, emergencyFundBalance]);
 
   const categoryUsage = useMemo(() => {
     const usage: { [key: string]: number } = {};

@@ -29,10 +29,11 @@ interface DashboardProps {
   transactions: Transaction[];
   categories: Category[];
   emergencyFundTarget: number;
+  emergencyFundBalance: number;
   initialBalance: number;
 }
 
-export function Dashboard({ transactions, categories, emergencyFundTarget, initialBalance }: DashboardProps) {
+export function Dashboard({ transactions, categories, emergencyFundTarget, emergencyFundBalance, initialBalance }: DashboardProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
   }, [categories, transactions]);
 
   const progressPercentage = emergencyFundTarget > 0 
-    ? Math.min(Math.max((currentBalance / emergencyFundTarget) * 100, 0), 100) 
+    ? Math.min(Math.max((emergencyFundBalance / emergencyFundTarget) * 100, 0), 100) 
     : 0;
 
   const healthStatus = useMemo(() => {
@@ -241,7 +242,7 @@ export function Dashboard({ transactions, categories, emergencyFundTarget, initi
           </div>
           <h4 className="text-sm font-semibold mb-2">Target Tabungan</h4>
           <div className="flex items-center gap-2 mb-4 text-xs">
-             <span className="font-semibold">{formatCurrency(currentBalance)}</span>
+             <span className="font-semibold">{formatCurrency(emergencyFundBalance)}</span>
              <ArrowRight className="h-3 w-3 text-muted-foreground" />
              <span className="text-muted-foreground">{formatCurrency(emergencyFundTarget)}</span>
           </div>

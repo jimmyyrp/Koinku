@@ -184,7 +184,7 @@ export async function DELETE(req: NextRequest) {
   try {
     await withTransaction(async (client) => {
       await client.query('DELETE FROM public.transactions');
-      // Tandai reset agar klien membuang cache lokal dan tidak mengirim balik data lama.
+      // Tandai waktu reset agar klien lain mengetahui data telah dikosongkan.
       await client.query(
         `UPDATE public.profiles SET data_reset_at = now() WHERE id = 'global'`
       );

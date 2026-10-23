@@ -17,8 +17,8 @@ Aplikasi manajemen keuangan pribadi dengan desain modern-soft, Next.js 15, dan S
    Gunakan **Connection Pooler** (host `db.<ref>.supabase.co` sekarang hanya IPv6 sehingga gagal di banyak jaringan):
    `postgresql://postgres.<project-ref>:PASSWORD@aws-0-<region>.pooler.supabase.com:5432/postgres`.
    Pastikan password pada URL di-percent-encode bila mengandung karakter khusus (contoh `&` menjadi `%26`).
-   Untuk TLS, unduh root CA dari Dashboard → Database → SSL Certificate lalu isi salah satu:
-   `DATABASE_SSL_ROOT_CERT_PATH` (path berkas, untuk lokal) atau `DATABASE_SSL_ROOT_CERT` (isi PEM/base64, untuk serverless).
+   Root CA Supabase sudah dibundel di `src/lib/supabase-ca.ts`, jadi tidak wajib diunduh. Bila ingin override,
+   isi `DATABASE_SSL_ROOT_CERT_PATH` (path berkas, untuk lokal) atau `DATABASE_SSL_ROOT_CERT` (isi PEM/base64, untuk serverless).
    Koneksi selalu memverifikasi sertifikat dan hostname; aplikasi tetap mewajibkan TLS meskipun URL memiliki parameter `sslmode`
    yang bertentangan. Jangan menonaktifkan verifikasi TLS untuk mengatasi error sertifikat. Secret key dan kredensial database
    harus tetap server-side; jangan beri awalan `NEXT_PUBLIC_`.
@@ -79,11 +79,12 @@ mengirim balik riwayat lama ke server.
 
 1. Import repositori di Vercel; framework terdeteksi otomatis sebagai Next.js (`vercel.json` sudah disertakan).
 2. Region function diatur ke `hnd1` (Tokyo) agar dekat dengan Supabase `ap-northeast-1`.
-3. Set environment variable berikut di Project Settings → Environment Variables (jangan commit):
-   - `DATABASE_URL` — connection pooler Supabase.
-   - `DATABASE_SSL_ROOT_CERT` — isi PEM root CA Supabase (berkas `.crt` di-`.gitignore`, jadi sertakan isinya di sini).
-   - `DATABASE_POOL_MAX` — mis. `3` untuk membatasi koneksi di lingkungan serverless.
-4. Jalankan `npm run migrate` (dari lokal, mengarah ke database yang sama) sebelum/ sesudah rilis karena migrasi tidak berjalan otomatis.
+3. Set environment variable berikut di Project Settings → Environment Variables untuk **Production, Preview, dan Development** (jangan commit):
+   - `DATABASE_URL` — **wajib**, gunakan connection pooler Supabase (`aws-0-<region>.pooler.supabase.com`), bukan host `db.<ref>.supabase.co`.
+   - `DATABASE_POOL_MAX` — opsional, mis. `3` untuk membatasi koneksi di lingkungan serverless.
+   - Root CA Supabase **sudah dibundel** di aplikasi (`src/lib/supabase-ca.ts`), jadi tidak perlu mengisi `DATABASE_SSL_ROOT_CERT` di Vercel. Variabel itu hanya untuk override bila diperlukan.
+4. Jalankan `npm run migrate` (dari lokal, dengan `DATABASE_URL` yang sama) sebelum rilis karena migrasi tidak berjalan otomatis.
+5. Setelah deploy, buka `https://<domain>/api/health`. Respons `{"ok":true,"database":"connected"}` berarti koneksi database sudah benar; bila `ok:false`, pesan `error` menunjukkan penyebabnya (mis. sertifikat, password, atau host salah).
 
 ## Keamanan dan deployment
 

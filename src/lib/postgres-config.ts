@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { PoolConfig } from 'pg';
+import { SUPABASE_ROOT_CA } from './supabase-ca';
 
 const TLS_CONNECTION_PARAMETERS = new Set([
   'ssl',
@@ -13,9 +14,23 @@ const TLS_CONNECTION_PARAMETERS = new Set([
   'uselibpqcompat',
 ]);
 
+const BUNDLED_CA_PATH = 'supabase/certs/prod-ca-2021.crt';
+
+function readCertificateFile(caPath: string): string | undefined {
+  try {
+    const resolved = path.resolve(process.cwd(), caPath);
+    if (!existsSync(resolved)) return undefined;
+    return readFileSync(resolved, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 // CA bisa diberikan lewat isi PEM langsung (untuk lingkungan serverless seperti
-// Vercel) atau lewat path file (untuk pengembangan lokal).
-function loadRootCertificate(): string | undefined {
+// Vercel) atau lewat path file (untuk pengembangan lokal). Bila keduanya tidak
+// tersedia, pakai sertifikat yang dibundel agar koneksi TLS tetap terverifikasi
+// di Vercel (berkas .crt di-ignore oleh git).
+function loadRootCertificate(): string {
   const inline = process.env.DATABASE_SSL_ROOT_CERT;
   if (inline && inline.trim()) {
     let pem = inline.trim();
@@ -30,7 +45,13 @@ function loadRootCertificate(): string | undefined {
   }
 
   const caPath = process.env.DATABASE_SSL_ROOT_CERT_PATH;
-  return caPath ? readFileSync(path.resolve(process.cwd(), caPath), 'utf8') : undefined;
+  if (caPath) {
+    const fromEnvPath = readCertificateFile(caPath);
+    if (fromEnvPath) return fromEnvPath;
+  }
+
+  const bundled = readCertificateFile(BUNDLED_CA_PATH);
+  return bundled ?? SUPABASE_ROOT_CA;
 }
 
 export function getSecurePostgresConfig(
@@ -53,9 +74,16 @@ export function getSecurePostgresConfig(
     }
   }
 
+  if (/^db\.[^.]+\.supabase\.co$/i.test(parsedUrl.hostname)) {
+    console.warn(
+      '[PostgreSQL] Host langsung Supabase biasanya hanya IPv6 dan gagal di Vercel. ' +
+        'Gunakan connection pooler (aws-0-<region>.pooler.supabase.com).'
+    );
+  }
+
   const ca = loadRootCertificate();
   return {
     connectionString: parsedUrl.toString(),
-    ssl: { rejectUnauthorized: true, ...(ca ? { ca } : {}) },
+    ssl: { rejectUnauthorized: true, ca },
   };
 }

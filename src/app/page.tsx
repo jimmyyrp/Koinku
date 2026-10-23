@@ -13,7 +13,8 @@ import {
   Loader2,
   Activity,
   Sparkles,
-  HandCoins
+  HandCoins,
+  RefreshCw
 } from 'lucide-react';
 import { Dashboard } from '@/app/components/Dashboard';
 import { TransactionList } from '@/app/components/TransactionList';
@@ -44,21 +45,25 @@ export default function App() {
   const [isSavingDebt, setIsSavingDebt] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [serverStatus, setServerStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
+  const [serverStatus, setServerStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const saveToCache = useCallback((type: 'transactions' | 'categories' | 'people' | 'profile' | 'debts', data: any) => {
-    localStorage.setItem(`koinku_${type}`, JSON.stringify(data));
-  }, []);
+  const loadData = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setServerStatus('error');
+      setLoadError('Tidak ada koneksi internet. Data hanya tersedia saat online.');
+      setIsLoading(false);
+      return;
+    }
 
-  const syncWithServer = useCallback(async () => {
-    if (!navigator.onLine) return;
-    setIsSyncing(true);
+    setServerStatus('loading');
+    setLoadError(null);
+
     try {
-      const [profileRes, catRes, transRes, peopleRes, debtsRes] = await Promise.all([
+      const responses = await Promise.all([
         fetch('/api/profile', { cache: 'no-store' }),
         fetch('/api/categories', { cache: 'no-store' }),
         fetch('/api/transactions', { cache: 'no-store' }),
@@ -66,254 +71,42 @@ export default function App() {
         fetch('/api/debts', { cache: 'no-store' }),
       ]);
 
-      const allOk = profileRes.ok && catRes.ok && transRes.ok && peopleRes.ok && debtsRes.ok;
-      setServerStatus(allOk ? 'ok' : 'error');
-
-      const profileData = await profileRes.json().catch(() => null);
-      const catData = await catRes.json().catch(() => null);
-      const transData = await transRes.json().catch(() => null);
-      const peopleData = await peopleRes.json().catch(() => null);
-      const debtsData = await debtsRes.json().catch(() => null);
-
-      // Server tidak merespons sempurna → berhenti di sini.
-      // Data lokal tetap dipakai, dan tidak ada dorong data yang membanjiri
-      // request lambat saat database tidak terjangkau.
-      if (!allOk) return;
-
-      // Penanda reset dari server: bila token berubah (mis. data dibersihkan
-      // dari perangkat lain atau dari dashboard), buang cache transaksi lokal
-      // agar aplikasi benar-benar mulai dari nol dan tidak mengirim balik
-      // riwayat lama ke server.
-      const serverResetAt = profileData?.profile?.dataResetAt as string | null | undefined;
-      const localResetAt = localStorage.getItem('koinku_data_reset_at');
-      if (serverResetAt && serverResetAt !== localResetAt) {
-        localStorage.setItem('koinku_transactions', JSON.stringify([]));
-        localStorage.setItem('koinku_data_reset_at', serverResetAt);
-        setTransactions([]);
+      if (responses.some((res) => !res.ok)) {
+        throw new Error('Database online tidak merespons. Periksa DATABASE_URL di server.');
       }
+
+      const [profileData, catData, transData, peopleData, debtsData] = await Promise.all(
+        responses.map((res) => res.json())
+      );
 
       if (profileData?.profile) {
-        const p = { 
-          initialBalance: Number(profileData.profile.initialBalance), 
-          emergencyFundTarget: Number(profileData.profile.emergencyFundTarget) 
-        };
-        setInitialBalance(p.initialBalance);
-        setEmergencyFundTarget(p.emergencyFundTarget);
-        saveToCache('profile', p);
+        setInitialBalance(Number(profileData.profile.initialBalance) || 0);
+        setEmergencyFundTarget(Number(profileData.profile.emergencyFundTarget) || 20000000);
       }
-
-      if (catData?.categories && catData.categories.length > 0) {
-        setCategories(catData.categories);
-        saveToCache('categories', catData.categories);
-      }
-
-      if (peopleData?.people && peopleData.people.length > 0) {
-        setPeople(peopleData.people);
-        saveToCache('people', peopleData.people);
-      }
-
-      if (transData?.transactions) {
-        setTransactions(transData.transactions);
-        saveToCache('transactions', transData.transactions);
-      }
-
-      if (debtsData?.debts) {
-        setDebts(debtsData.debts);
-        saveToCache('debts', debtsData.debts);
-      }
-
-      // Dorong ke server HANYA item lokal yang belum tersinkron (id sementara
-      // negatif/string). Jangan pernah mengunggah ulang seluruh cache hanya
-      // karena server kosong, agar reset data tetap bertahan.
-      const cachedTransactions = localStorage.getItem('koinku_transactions');
-      const cachedCategories = localStorage.getItem('koinku_categories');
-      const cachedPeople = localStorage.getItem('koinku_people');
-      const cachedProfile = localStorage.getItem('koinku_profile');
-
-      let localTrans: any[] = [];
-      let localCats: any[] = [];
-      let localPeople: any[] = [];
-      try {
-        const parsedTrans = cachedTransactions ? JSON.parse(cachedTransactions) : null;
-        const parsedCats = cachedCategories ? JSON.parse(cachedCategories) : null;
-        const parsedPeople = cachedPeople ? JSON.parse(cachedPeople) : null;
-        if (Array.isArray(parsedTrans)) localTrans = parsedTrans;
-        if (Array.isArray(parsedCats)) localCats = parsedCats;
-        if (Array.isArray(parsedPeople)) localPeople = parsedPeople;
-      } catch {
-        // cache corrupt — abaikan
-      }
-
-      const isUnsyncedId = (id: any) => id == null || typeof id === 'string' || id <= 0;
-      const pendingTrans = localTrans.filter((t) => isUnsyncedId(t.id));
-      const pendingCats = localCats.filter((c) => isUnsyncedId(c.id));
-      const pendingPeople = localPeople.filter((p) => isUnsyncedId(p.id));
-
-      // Sinkron orang dulu agar id baru bisa dipakai transaksi (paid_by_id)
-      const peopleIdMap: Record<string, number> = {};
-      let pushedPeople = false;
-      if (pendingPeople.length > 0) {
-        const toPush = pendingPeople;
-        try {
-          const res = await fetch('/api/people', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(toPush),
-          });
-          if (res.ok) {
-            const resp = await res.json().catch(() => null);
-            if (resp?.ids) {
-              toPush.forEach((p, i) => {
-                const newId = resp.ids[i];
-                if (newId && p.id !== newId) peopleIdMap[String(p.id)] = newId;
-              });
-            } else if (resp?.id) {
-              peopleIdMap[String(toPush[0].id)] = resp.id;
-            }
-            pushedPeople = true;
-          }
-        } catch {
-          // offline — tetap lokal
-        }
-      }
-
-      // Sinkron kategori dulu agar id baru bisa dipakai transaksi
-      const catIdMap: Record<string, number> = {};
-      let pushedCats = false;
-      if (pendingCats.length > 0) {
-        const toPush = pendingCats;
-        try {
-          const res = await fetch('/api/categories', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(toPush),
-          });
-          if (res.ok) {
-            const resp = await res.json().catch(() => null);
-            if (resp?.ids) {
-              toPush.forEach((c, i) => {
-                const newId = resp.ids[i];
-                if (newId && c.id !== newId) catIdMap[String(c.id)] = newId;
-              });
-            } else if (resp?.id) {
-              catIdMap[String(toPush[0].id)] = resp.id;
-            }
-            pushedCats = true;
-          }
-        } catch {
-          // offline — tetap lokal
-        }
-      }
-
-      let pushedTrans = false;
-      if (pendingTrans.length > 0) {
-        const toPush = pendingTrans;
-        let ok = true;
-        for (const t of toPush) {
-          if (catIdMap[String(t.category_id)] != null) {
-            t.category_id = catIdMap[String(t.category_id)];
-            t.categoryId = t.category_id;
-          }
-          if (peopleIdMap[String(t.paid_by_id)] != null) {
-            t.paid_by_id = peopleIdMap[String(t.paid_by_id)];
-            t.paidById = t.paid_by_id;
-          }
-          try {
-            const res = await fetch('/api/transactions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(t),
-            });
-            if (!res.ok) {
-              ok = false;
-              break;
-            }
-          } catch {
-            ok = false;
-            break;
-          }
-        }
-        pushedTrans = ok;
-      }
-
-      if ((!profileData?.profile || profileData.profile.initialBalance === undefined) && cachedProfile) {
-        const localProfile = JSON.parse(cachedProfile);
-        await fetch('/api/profile', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            initialBalance: Number(localProfile.initialBalance) || 0,
-            emergencyFundTarget: Number(localProfile.emergencyFundTarget) || 20000000,
-          }),
-        });
-      }
-
-      // Ambil ulang data server agar id int hasil sinkron ikut terekam di cache lokal
-      if (pushedTrans || pushedCats || pushedPeople) {
-        const [t2, c2, p2] = await Promise.all([
-          fetch('/api/transactions', { cache: 'no-store' }),
-          fetch('/api/categories', { cache: 'no-store' }),
-          fetch('/api/people', { cache: 'no-store' }),
-        ]);
-        const td = await t2.json().catch(() => null);
-        const cd = await c2.json().catch(() => null);
-        const pd = await p2.json().catch(() => null);
-        if (td?.transactions) {
-          setTransactions(td.transactions);
-          saveToCache('transactions', td.transactions);
-        }
-        if (cd?.categories && cd.categories.length > 0) {
-          setCategories(cd.categories);
-          saveToCache('categories', cd.categories);
-        }
-        if (pd?.people && pd.people.length > 0) {
-          setPeople(pd.people);
-          saveToCache('people', pd.people);
-        }
-      }
-    } catch (err) {
-      console.error('Sync Error:', err);
+      setCategories(Array.isArray(catData?.categories) ? catData.categories : []);
+      setPeople(Array.isArray(peopleData?.people) ? peopleData.people : []);
+      setTransactions(Array.isArray(transData?.transactions) ? transData.transactions : []);
+      setDebts(Array.isArray(debtsData?.debts) ? debtsData.debts : []);
+      setServerStatus('ok');
+    } catch (error) {
+      console.error('Load Error:', error);
       setServerStatus('error');
+      setLoadError(
+        error instanceof Error ? error.message : 'Gagal memuat data dari database online.'
+      );
     } finally {
-      setIsSyncing(false);
+      setIsLoading(false);
     }
-  }, [saveToCache]);
+  }, []);
 
   useEffect(() => {
-    setMounted(true);
     setIsOnline(navigator.onLine);
+    loadData();
 
-    const readCache = <T,>(key: string): T | null => {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? (JSON.parse(raw) as T) : null;
-      } catch {
-        // Cache rusak -> buang agar aplikasi tetap bisa jalan
-        localStorage.removeItem(key);
-        return null;
-      }
+    const handleOnline = () => {
+      setIsOnline(true);
+      loadData();
     };
-
-    const cachedTransactions = readCache<Transaction[]>('koinku_transactions');
-    const cachedCategories = readCache<Category[]>('koinku_categories');
-    const cachedPeople = readCache<Person[]>('koinku_people');
-    const cachedDebts = readCache<Debt[]>('koinku_debts');
-    const cachedProfile = readCache<{ initialBalance: number; emergencyFundTarget: number }>('koinku_profile');
-
-    if (cachedTransactions) setTransactions(cachedTransactions);
-    if (cachedCategories) setCategories(cachedCategories);
-    else setCategories(INITIAL_CATEGORIES);
-    if (cachedPeople) setPeople(cachedPeople);
-    if (cachedDebts) setDebts(cachedDebts);
-
-    if (cachedProfile) {
-      setInitialBalance(Number(cachedProfile.initialBalance) || 0);
-      setEmergencyFundTarget(Number(cachedProfile.emergencyFundTarget) || 20000000);
-    }
-
-    syncWithServer();
-
-    const handleOnline = () => { setIsOnline(true); syncWithServer(); };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -322,7 +115,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [syncWithServer]);
+  }, [loadData]);
 
   const missingSystemCategories = useMemo(() => {
     return INITIAL_CATEGORIES.filter(initial => 
@@ -332,12 +125,6 @@ export default function App() {
 
   const handleAddDebt = async (data: { personName: string; amount: number; direction: DebtDirection; note: string; debtDate: string }) => {
     setIsSavingDebt(true);
-    const tempId = -Math.abs(Date.now());
-    const newDebt: Debt = { id: tempId, ...data };
-    const updated = [newDebt, ...debts];
-    setDebts(updated);
-    saveToCache('debts', updated);
-
     try {
       const res = await fetch('/api/debts', {
         method: 'POST',
@@ -345,50 +132,53 @@ export default function App() {
         body: JSON.stringify(data),
       });
       const resp = await res.json().catch(() => null);
-      if (!res.ok) throw new Error('Gagal simpan utang');
-      if (resp?.id && resp.id !== tempId) {
-        const withId = updated.map(d => d.id === tempId ? { ...d, id: resp.id } : d);
-        setDebts(withId);
-        saveToCache('debts', withId);
-      }
+      if (!res.ok || !resp?.id) throw new Error(resp?.error || 'Gagal simpan utang');
+      await loadData();
       toast({ title: 'Utang Tercatat' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Tersimpan Lokal' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsSavingDebt(false);
     }
   };
 
   const handleDeleteDebt = async (id: number) => {
-    const updated = debts.filter(d => d.id !== id);
-    setDebts(updated);
-    saveToCache('debts', updated);
     try {
       const res = await fetch(`/api/debts?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal hapus utang');
+      await loadData();
       toast({ title: 'Terhapus' });
-    } catch {
-      toast({ variant: 'destructive', title: 'Terhapus Lokal' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menghapus',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleUpdateProfile = async (balance: number, target: number) => {
     setIsSavingProfile(true);
-    const newProfile = { initialBalance: balance, emergencyFundTarget: target };
-    setInitialBalance(balance);
-    setEmergencyFundTarget(target);
-    saveToCache('profile', newProfile);
-
     try {
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initialBalance: balance, emergencyFundTarget: target }),
       });
-      if (!res.ok) throw new Error('Gagal sinkron profil');
-      toast({ title: "Profil Tersinkron" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Berhasil Lokal" });
+      if (!res.ok) throw new Error('Gagal menyimpan profil');
+      setInitialBalance(balance);
+      setEmergencyFundTarget(target);
+      toast({ title: 'Profil Tersimpan' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsSavingProfile(false);
     }
@@ -404,10 +194,14 @@ export default function App() {
         body: JSON.stringify(missingSystemCategories),
       });
       if (!res.ok) throw new Error('Gagal sinkron kategori');
-      toast({ title: "Sistem Diperbarui" });
-      await syncWithServer();
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Gagal Sinkron" });
+      await loadData();
+      toast({ title: 'Sistem Diperbarui' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Sinkron',
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsSyncingCategories(false);
     }
@@ -422,12 +216,6 @@ export default function App() {
     const existing = people.find(p => p.name.toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing;
 
-    const tempId = -Math.abs(Date.now());
-    const newPerson: Person = { id: tempId, name: trimmed, isSelf: false };
-    const updated = [...people, newPerson];
-    setPeople(updated);
-    saveToCache('people', updated);
-
     try {
       const res = await fetch('/api/people', {
         method: 'POST',
@@ -435,47 +223,33 @@ export default function App() {
         body: JSON.stringify({ name: trimmed, is_self: false }),
       });
       const resp = await res.json().catch(() => null);
-      if (!res.ok) throw new Error('Gagal tambah orang');
-      if (resp?.id && resp.id !== tempId) {
-        const withId = updated.map(p => p.id === tempId ? { ...p, id: resp.id } : p);
-        setPeople(withId);
-        saveToCache('people', withId);
-        return { ...newPerson, id: resp.id };
-      }
-      return newPerson;
-    } catch {
-      toast({ variant: "destructive", title: "Tersimpan Lokal" });
-      return newPerson;
+      if (!res.ok || !resp?.id) throw new Error(resp?.error || 'Gagal tambah orang');
+      const person: Person = { id: resp.id, name: trimmed, isSelf: false };
+      setPeople((prev) => [...prev, person]);
+      return person;
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menambah Orang',
+        description: error instanceof Error ? error.message : undefined,
+      });
+      return null;
     }
   };
 
   const handleAddTransaction = async (data: any) => {
     const isEdit = !!editingTransaction;
-    const tempId = -Math.abs(Date.now());
-    const id = isEdit ? editingTransaction!.id : tempId;
     const paidById = data.paidById ?? selfPersonId ?? undefined;
-    const paidPerson = people.find(p => p.id === paidById) || null;
-    const forPersonId = data.forPersonId ?? null;
-    const forPerson = people.find(p => p.id === forPersonId) || null;
     const newTx = {
-      id,
+      id: isEdit ? editingTransaction!.id : undefined,
       description: data.description,
       amount: Number(data.amount),
       type: data.type,
       category_id: data.categoryId,
       paid_by_id: paidById,
-      for_person_id: forPersonId,
+      for_person_id: data.forPersonId ?? null,
       date: editingTransaction?.date || new Date().toISOString(),
     };
-
-    let updated = isEdit
-      ? transactions.map(t => t.id === id ? { ...t, ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null, forPersonId: forPersonId ?? null, forPersonName: forPerson?.name ?? null, forPersonIsSelf: forPerson?.isSelf ?? null } : t)
-      : [{ ...newTx, categoryId: data.categoryId, paidById: paidById ?? null, paidByName: paidPerson?.name ?? null, paidByIsSelf: paidPerson?.isSelf ?? null, forPersonId: forPersonId ?? null, forPersonName: forPerson?.name ?? null, forPersonIsSelf: forPerson?.isSelf ?? null } as Transaction, ...transactions];
-
-    setTransactions(updated as Transaction[]);
-    saveToCache('transactions', updated);
-    setIsFormOpen(false);
-    setEditingTransaction(null);
 
     try {
       const res = await fetch('/api/transactions', {
@@ -484,38 +258,38 @@ export default function App() {
         body: JSON.stringify(newTx),
       });
       const resp = await res.json().catch(() => null);
-      if (!res.ok) throw new Error('Gagal simpan transaksi');
-      if (resp?.id && resp.id !== id) {
-        updated = updated.map(t => t.id === id ? { ...t, id: resp.id, categoryId: Number(newTx.category_id) } : t);
-        setTransactions(updated as Transaction[]);
-        saveToCache('transactions', updated);
-      }
-      toast({ title: isEdit ? "Data Diubah" : "Berhasil Dicatat" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Tersimpan Lokal" });
+      if (!res.ok || !resp?.id) throw new Error(resp?.error || 'Gagal simpan transaksi');
+      setIsFormOpen(false);
+      setEditingTransaction(null);
+      await loadData();
+      toast({ title: isEdit ? 'Data Diubah' : 'Berhasil Dicatat' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleDeleteTransaction = async (id: number) => {
-    const updated = transactions.filter(t => t.id !== id);
-    setTransactions(updated);
-    saveToCache('transactions', updated);
     try {
       const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal hapus transaksi');
-      toast({ title: "Terhapus" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Terhapus Lokal" });
+      await loadData();
+      toast({ title: 'Terhapus' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menghapus',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleAddCategory = async (name: string, type: 'expense' | 'income', budget?: number) => {
-    const tempId = -Math.abs(Date.now());
     const colors = ['#FFD93D', '#6C5CE7', '#FF8AAE', '#FF6B6B', '#44DDFF', '#FFA502', '#2ED573'];
-    const newCat = { id: tempId, name, type, budget, color: colors[Math.floor(Math.random() * colors.length)] };
-    const updated = [...categories, newCat];
-    setCategories(updated);
-    saveToCache('categories', updated);
+    const newCat = { name, type, budget, color: colors[Math.floor(Math.random() * colors.length)] };
     try {
       const res = await fetch('/api/categories', {
         method: 'POST',
@@ -523,35 +297,34 @@ export default function App() {
         body: JSON.stringify(newCat),
       });
       const resp = await res.json().catch(() => null);
-      if (!res.ok) throw new Error('Gagal tambah kategori');
-      if (resp?.id && resp.id !== tempId) {
-        const updatedWithId = updated.map(c => c.id === tempId ? { ...c, id: resp.id } : c);
-        setCategories(updatedWithId);
-        saveToCache('categories', updatedWithId);
-      }
-      toast({ title: "Kategori Ditambah" });
-    } catch (e) {
-      toast({ title: "Simpan Lokal" });
+      if (!res.ok || !resp?.id) throw new Error(resp?.error || 'Gagal tambah kategori');
+      await loadData();
+      toast({ title: 'Kategori Ditambah' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleDeleteCategory = async (id: number) => {
-    const updated = categories.filter(c => c.id !== id);
-    setCategories(updated);
-    saveToCache('categories', updated);
     try {
       const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal hapus kategori');
-      toast({ title: "Kategori Dihapus" });
-    } catch (e) {
-      toast({ title: "Hapus Lokal" });
+      await loadData();
+      toast({ title: 'Kategori Dihapus' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menghapus',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleUpdateCategoryBudget = async (id: number, budget: number) => {
-    const updated = categories.map(c => c.id === id ? { ...c, budget } : c);
-    setCategories(updated);
-    saveToCache('categories', updated);
     try {
       const res = await fetch(`/api/categories/${id}`, {
         method: 'PATCH',
@@ -559,20 +332,28 @@ export default function App() {
         body: JSON.stringify({ budget }),
       });
       if (!res.ok) throw new Error('Gagal perbarui budget');
-    } catch (e) {
-      console.warn("Budget update local only");
+      await loadData();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menyimpan',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
   const handleResetData = async () => {
-    setTransactions([]);
-    saveToCache('transactions', []);
     try {
       const res = await fetch('/api/transactions', { method: 'DELETE' });
       if (!res.ok) throw new Error('Gagal bersihkan data');
-      toast({ title: "Data Dibersihkan" });
-    } catch (e) {
-      toast({ title: "Reset Lokal" });
+      await loadData();
+      toast({ title: 'Data Dibersihkan' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal Menghapus',
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   };
 
@@ -604,28 +385,53 @@ export default function App() {
     a.click();
   };
 
-  if (!mounted) {
+  if (isLoading) {
     return (
       <div className="min-h-[100dvh] w-full bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin opacity-40" />
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin opacity-40" />
+          <p className="text-sm text-muted-foreground">Memuat data dari database online...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (serverStatus === 'error' && transactions.length === 0 && categories.length === 0) {
+    return (
+      <div className="min-h-[100dvh] w-full bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6 text-center">
+          <div className="mx-auto mb-4 h-12 w-12 rounded-2xl bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center">
+            <CloudOff className="h-6 w-6 text-rose-600 dark:text-rose-400" />
+          </div>
+          <h1 className="text-lg font-bold">Database Online Tidak Terjangkau</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {loadError ?? 'Periksa koneksi dan konfigurasi DATABASE_URL di server.'}
+          </p>
+          <button
+            onClick={() => {
+              setIsLoading(true);
+              loadData();
+            }}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white neo-interactive"
+          >
+            <RefreshCw className="h-4 w-4" /> Coba Lagi
+          </button>
+        </div>
       </div>
     );
   }
 
   const status = (() => {
     if (!isOnline) {
-      return { tone: 'offline', label: 'Offline', sub: 'Data tersimpan di perangkat', Icon: WifiOff };
+      return { tone: 'offline', label: 'Offline', sub: 'Tidak ada koneksi internet', Icon: WifiOff };
     }
-    if (isSyncing) {
-      return { tone: 'sync', label: 'Sinkron...', sub: 'Mengirim data', Icon: Loader2 };
+    if (serverStatus === 'loading') {
+      return { tone: 'sync', label: 'Memuat...', sub: 'Mengambil data online', Icon: Loader2 };
     }
     if (serverStatus === 'error') {
-      return { tone: 'error', label: 'Mode Lokal', sub: 'Server DB belum terjangkau', Icon: CloudOff };
+      return { tone: 'error', label: 'Server Terputus', sub: 'Database online tidak terjangkau', Icon: CloudOff };
     }
-    if (serverStatus === 'ok') {
-      return { tone: 'ok', label: 'Tersinkron', sub: 'Terhubung ke server', Icon: Wifi };
-    }
-    return { tone: 'idle', label: 'Memeriksa...', sub: 'Mengecek koneksi', Icon: Wifi };
+    return { tone: 'ok', label: 'Online', sub: 'Terhubung ke database online', Icon: Wifi };
   })();
 
   const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
@@ -694,6 +500,18 @@ export default function App() {
             <p className="text-xs font-semibold truncate">{status.label}</p>
             <p className="text-[11px] text-muted-foreground truncate">{status.sub}</p>
           </div>
+          {status.tone === 'error' && (
+            <button
+              onClick={() => {
+                setIsLoading(true);
+                loadData();
+              }}
+              aria-label="Coba lagi"
+              className="ml-auto rounded-lg p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </aside>
 
@@ -715,15 +533,15 @@ export default function App() {
                </span>
              ) : serverStatus === 'error' ? (
                <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-full">
-                 <CloudOff className="h-3.5 w-3.5" /> Lokal
+                 <CloudOff className="h-3.5 w-3.5" /> Terputus
                </span>
-             ) : isSyncing ? (
+             ) : serverStatus === 'loading' ? (
                <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
-                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sinkron
+                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memuat
                </span>
              ) : (
                <span className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-full">
-                 <Wifi className="h-3.5 w-3.5" /> Tersinkron
+                 <Wifi className="h-3.5 w-3.5" /> Online
                </span>
              )}
              <ThemeToggle />
